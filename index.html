@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <!-- SEO Metadata -->
+    <title>Milk & Honey Tales - Bilingual Isometric 2D Game</title>
+    <meta name="description" content="A bilingual (EN/HE) isometric 2D Pokémon-inspired game set in Israel, built with Vite, TypeScript, and HTML5 Canvas." />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="game-container">
+      <canvas id="game-canvas"></canvas>
+      
+      <!-- Overlay controls for accessibility and language switching -->
+      <div id="ui-overlay">
+        <div id="lang-switch" class="ui-button" role="button" aria-label="Toggle Language" tabindex="0">HE / EN</div>
+        <div id="controls-hint">Use WASD or Arrow Keys to Walk. Shift to Run. Space/Enter to Interact.</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
