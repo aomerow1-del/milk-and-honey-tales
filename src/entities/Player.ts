@@ -59,7 +59,7 @@ export class Player {
     this.targetGridX = startX;
     this.targetGridY = startY;
 
-    const initialScreen = IsoMath.gridToScreen(startX, startY);
+    const initialScreen = IsoMath.tileToScreen(startX, startY);
     this.screenX = initialScreen.x;
     this.screenY = initialScreen.y;
 
@@ -129,12 +129,12 @@ export class Player {
       this.isMoving     = false;
       this.moveProgress = 0;
 
-      const final = IsoMath.gridToScreen(this.gridX, this.gridY);
+      const final = IsoMath.tileToScreen(this.gridX, this.gridY);
       this.screenX = final.x;
       this.screenY = final.y;
     } else {
-      const start = IsoMath.gridToScreen(this.gridX, this.gridY);
-      const end   = IsoMath.gridToScreen(this.targetGridX, this.targetGridY);
+      const start = IsoMath.tileToScreen(this.gridX, this.gridY);
+      const end   = IsoMath.tileToScreen(this.targetGridX, this.targetGridY);
       this.screenX = start.x + (end.x - start.x) * this.moveProgress;
       this.screenY = start.y + (end.y - start.y) * this.moveProgress;
     }

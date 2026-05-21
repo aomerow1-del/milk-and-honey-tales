@@ -9,14 +9,14 @@ export class IsoMath {
 
   /**
    * Projects 2D grid coordinates (Cartesian) into 2D isometric screen space coordinates.
-   * @param gridX Cartesian X coordinate
-   * @param gridY Cartesian Y coordinate
+   * @param x Cartesian X coordinate
+   * @param y Cartesian Y coordinate
    * @returns Projected point on the screen (local origin)
    */
-  public static gridToScreen(gridX: number, gridY: number): Point2D {
+  public static tileToScreen(x: number, y: number): Point2D {
     return {
-      x: (gridX - gridY) * (this.TILE_WIDTH / 2),
-      y: (gridX + gridY) * (this.TILE_HEIGHT / 2)
+      x: (x - y) * (this.TILE_WIDTH / 2),
+      y: (x + y) * (this.TILE_HEIGHT / 2)
     };
   }
 
@@ -26,10 +26,11 @@ export class IsoMath {
    * @param screenY Screen coordinate Y
    * @returns Cartesian grid coordinates
    */
-  public static screenToGrid(screenX: number, screenY: number): Point2D {
+  public static screenToTile(screenX: number, screenY: number): Point2D {
     return {
       x: (screenY / this.TILE_HEIGHT) + (screenX / this.TILE_WIDTH),
       y: (screenY / this.TILE_HEIGHT) - (screenX / this.TILE_WIDTH)
     };
   }
 }
+

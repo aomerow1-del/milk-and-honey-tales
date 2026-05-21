@@ -1,7 +1,9 @@
 import './index.css';
 import { IsoMath } from './core/IsoMath';
-import { GrassMap, MAP_SIZE } from './core/Map';
+import { GameMap, MAP_SIZE } from './core/Map';
 import { Player } from './entities/Player';
+import { LocaleManager } from './localization/LocaleManager';
+import { Camera } from './core/Camera';
 
 // Setup canvas configuration
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -11,14 +13,28 @@ const ctx = canvas.getContext('2d')!;
 canvas.width = 960;
 canvas.height = 540;
 
+// Instantiate managers and entities
+const map = new GameMap();
+const player = new Player(0, 0);
+const camera = new Camera();
+const localeManager = LocaleManager.getInstance();
+
+// Snap camera immediately on startup to center the player
+const initialPlayerScreen = IsoMath.tileToScreen(player.gridX, player.gridY);
+camera.snapTo(
+  initialPlayerScreen.x,
+  initialPlayerScreen.y + IsoMath.TILE_HEIGHT / 2,
+  canvas.width,
+  canvas.height
+);
+
 // Application State
-let language: 'en' | 'he' = 'en';
 let hoverGridX = -1;
 let hoverGridY = -1;
 let time = 0;
 let lastTime = 0;
 
-// Keyboard input state
+// Keyboard input state (supports WASD and arrow keys)
 const keys = {
   ArrowUp: false,
   ArrowDown: false,
@@ -26,36 +42,10 @@ const keys = {
   ArrowRight: false,
 };
 
-// Instantiate player at grid (0,0)
-const player = new Player(0, 0);
-
 // Dynamic double-click ripple wave state
 let waveTriggerTime = 0;
 let waveCenterX = -1;
 let waveCenterY = -1;
-
-// Translation dictionary
-const strings = {
-  en: {
-    title: 'Isometric Movement Engine',
-    subtitle: '10x10 alternated grid with smooth sliding player',
-    langName: 'עברית (HE)',
-    hint: 'Use Keyboard Arrow Keys to walk. Hover cursor over tiles. Double-click to ripple.',
-  },
-  he: {
-    title: 'מנוע תנועה איזומטרי',
-    subtitle: 'גריד 10x10 עם שחקן מחליק בצורה חלקה',
-    langName: 'English (EN)',
-    hint: 'השתמש במקשי החצים כדי ללכת. רחף עם העכבר מעל האריחים. קליק כפול לגל גלים.',
-  }
-};
-
-// Center offsets for drawing the 10x10 isometric grid centered on canvas
-const getMapCenterOffsets = () => {
-  const cx = canvas.width / 2;
-  const cy = (canvas.height - (MAP_SIZE * IsoMath.TILE_HEIGHT)) / 2;
-  return { cx, cy };
-};
 
 // Transform client coordinates to logical canvas coordinates (handles object-fit)
 const getLogicalMousePos = (clientX: number, clientY: number) => {
@@ -87,16 +77,34 @@ const getLogicalMousePos = (clientX: number, clientY: number) => {
 
 // Setup Keyboard Listeners
 window.addEventListener('keydown', (e) => {
-  if (e.key in keys) {
+  const key = e.key;
+  if (key === 'ArrowUp' || key === 'w' || key === 'W') {
+    keys.ArrowUp = true;
     e.preventDefault();
-    keys[e.key as keyof typeof keys] = true;
+  } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+    keys.ArrowDown = true;
+    e.preventDefault();
+  } else if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
+    keys.ArrowLeft = true;
+    e.preventDefault();
+  } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
+    keys.ArrowRight = true;
+    e.preventDefault();
+  } else if (key === ' ' || key === 'Enter') {
+    e.preventDefault();
   }
 });
 
 window.addEventListener('keyup', (e) => {
-  if (e.key in keys) {
-    e.preventDefault();
-    keys[e.key as keyof typeof keys] = false;
+  const key = e.key;
+  if (key === 'ArrowUp' || key === 'w' || key === 'W') {
+    keys.ArrowUp = false;
+  } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+    keys.ArrowDown = false;
+  } else if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
+    keys.ArrowLeft = false;
+  } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
+    keys.ArrowRight = false;
   }
 });
 
@@ -133,6 +141,11 @@ const tick = (currentTime: number) => {
 
   // 2. Update player position interpolation
   player.update(deltaTime);
+
+  // 3. Update Camera position (target the player's center)
+  const targetCamX = player.screenX;
+  const targetCamY = player.screenY + IsoMath.TILE_HEIGHT / 2;
+  camera.update(targetCamX, targetCamY, canvas.width, canvas.height, deltaTime);
   
   // Clear canvas with gradient
   const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -151,8 +164,6 @@ const tick = (currentTime: number) => {
     ctx.stroke();
   }
 
-  const { cx, cy } = getMapCenterOffsets();
-
   // Compile render lists
   const drawList: Drawable[] = [];
 
@@ -164,7 +175,7 @@ const tick = (currentTime: number) => {
       drawList.push({
         depth: tileX + tileY,
         renderOrder: 0,
-        draw: () => drawTile(tileX, tileY, cx, cy)
+        draw: () => drawTile(tileX, tileY)
       });
     }
   }
@@ -177,7 +188,7 @@ const tick = (currentTime: number) => {
   drawList.push({
     depth: playerInterpX + playerInterpY,
     renderOrder: 1,
-    draw: () => player.draw(ctx, cx, cy)
+    draw: () => player.draw(ctx, 0, 0)
   });
 
   // Sort drawList: ascending depth, then renderOrder
@@ -188,20 +199,26 @@ const tick = (currentTime: number) => {
     return a.depth - b.depth;
   });
 
+  // LAYER 1: World-space rendering (shifted by Camera translation)
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+  
   // Draw everything in sorted order
   for (const item of drawList) {
     item.draw();
   }
+  
+  ctx.restore();
 
-  // Draw localized overlay interface
+  // LAYER 2: Text-space / interface rendering (Fixed to window)
   drawHUD();
 
   requestAnimationFrame(tick);
 };
 
 // Render function for individual tiles
-const drawTile = (x: number, y: number, cx: number, cy: number) => {
-  const screenPos = IsoMath.gridToScreen(x, y);
+const drawTile = (x: number, y: number) => {
+  const screenPos = IsoMath.tileToScreen(x, y);
 
   // Calculate dynamic wave bobbing if ripple is active
   let bob = 0;
@@ -220,11 +237,11 @@ const drawTile = (x: number, y: number, cx: number, cy: number) => {
   }
 
   const ambientBob = Math.sin(time * 2 + x * 0.4 + y * 0.4) * 1.5;
-  const drawX = screenPos.x + cx;
-  const drawY = screenPos.y + cy + bob + ambientBob;
+  const drawX = screenPos.x;
+  const drawY = screenPos.y + bob + ambientBob;
 
   const isHovered = x === hoverGridX && y === hoverGridY;
-  const type = GrassMap[y][x];
+  const type = map.getTile(x, y);
 
   let topColor = type === 0 ? '#1b5e20' : '#2e7d32';
   let leftColor = type === 0 ? '#124116' : '#1b5e20';
@@ -288,12 +305,13 @@ const drawTile = (x: number, y: number, cx: number, cy: number) => {
 // HUD Canvas drawing logic
 const drawHUD = () => {
   ctx.save();
-  const isRtl = language === 'he';
-  ctx.direction = isRtl ? 'rtl' : 'ltr';
+  const isRtl = localeManager.getLocale() === 'he';
+  ctx.direction = localeManager.getCanvasDirection();
+  ctx.textAlign = localeManager.getTextAlign();
 
   // Card parameters
   const cardW = 340;
-  const cardH = 95;
+  const cardH = 110;
   const cardX = isRtl ? canvas.width - cardW - 20 : 20;
   const cardY = 20;
 
@@ -306,32 +324,43 @@ const drawHUD = () => {
   ctx.fill();
   ctx.stroke();
 
+  const textX = isRtl ? cardX + cardW - 20 : cardX + 20;
+
   // Title
   ctx.font = '600 16px "Outfit", sans-serif';
   ctx.fillStyle = '#4db6ac';
   ctx.fillText(
-    strings[language].title,
-    isRtl ? cardX + cardW - 20 : cardX + 20,
-    cardY + 28
+    localeManager.getStrings().title,
+    textX,
+    cardY + 26
   );
 
   // Subtitle
   ctx.font = '400 12px "Rubik", sans-serif';
   ctx.fillStyle = '#b0bec5';
   ctx.fillText(
-    strings[language].subtitle,
-    isRtl ? cardX + cardW - 20 : cardX + 20,
-    cardY + 48
+    localeManager.getStrings().subtitle,
+    textX,
+    cardY + 44
+  );
+
+  // Region Loading Logs
+  ctx.font = 'italic 400 11px "Outfit", sans-serif';
+  ctx.fillStyle = '#ffd54f';
+  ctx.fillText(
+    localeManager.getStrings().regionLoading,
+    textX,
+    cardY + 62
   );
 
   // Player Grid Status
   ctx.font = '500 12px "Outfit", sans-serif';
-  ctx.fillStyle = '#ffd54f';
-  const playerText = `${isRtl ? 'מיקום שחקן' : 'Player Grid'}: [X: ${player.gridX}, Y: ${player.gridY}]${player.isMoving ? ' (Moving...)' : ''}`;
+  ctx.fillStyle = '#81c784';
+  const playerText = `${isRtl ? 'מיקום שחקן' : 'Player Grid'}: [X: ${player.gridX}, Y: ${player.gridY}]${player.isMoving ? (isRtl ? ' (בתנועה...)' : ' (Moving...)') : ''}`;
   ctx.fillText(
     playerText,
-    isRtl ? cardX + cardW - 20 : cardX + 20,
-    cardY + 68
+    textX,
+    cardY + 82
   );
 
   // Hover Grid Status
@@ -342,8 +371,8 @@ const drawHUD = () => {
     : `${isRtl ? 'אין אריח מסומן' : 'No hover tile'}`;
   ctx.fillText(
     hoverText,
-    isRtl ? cardX + cardW - 20 : cardX + 20,
-    cardY + 84
+    textX,
+    cardY + 98
   );
 
   // Active status circle indicator
@@ -362,31 +391,34 @@ const init = () => {
 
   const updateDomLabels = () => {
     if (langBtn) {
-      langBtn.innerText = strings[language].langName;
+      langBtn.innerText = localeManager.getStrings().langSwitch;
     }
     if (hintText) {
-      hintText.innerText = strings[language].hint;
+      hintText.innerText = localeManager.getStrings().hint;
     }
   };
 
   if (langBtn) {
     langBtn.addEventListener('click', () => {
-      language = language === 'en' ? 'he' : 'en';
-      updateDomLabels();
+      localeManager.toggleLocale();
     });
   }
+
+  localeManager.addChangeListener(() => {
+    updateDomLabels();
+  });
 
   updateDomLabels();
 
   // Mouse move listener to compute hover mapping back to Cartesian
   canvas.addEventListener('mousemove', (e) => {
     const mousePos = getLogicalMousePos(e.clientX, e.clientY);
-    const { cx, cy } = getMapCenterOffsets();
 
-    const localX = mousePos.x - cx;
-    const localY = mousePos.y - cy;
+    // Convert mouse coordinates from canvas/screen space to world space by adding camera offset
+    const worldX = mousePos.x + camera.x;
+    const worldY = mousePos.y + camera.y;
 
-    const gridPos = IsoMath.screenToGrid(localX, localY);
+    const gridPos = IsoMath.screenToTile(worldX, worldY);
     
     const tileX = Math.floor(gridPos.x);
     const tileY = Math.floor(gridPos.y);
