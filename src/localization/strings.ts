@@ -18,6 +18,9 @@ export interface TranslationStrings {
   combatEnemyHealth: string;
   combatPlayerHealth: string;
   combatControls: string;
+  bananoDialogueNeedBamba: string;
+  bananoDialogueThanks: string;
+  questCompleted: string;
 }
 
 export const strings: Record<'en' | 'he', TranslationStrings> = {
@@ -43,7 +46,10 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     combatTitle: 'Combat',
     combatEnemyHealth: 'Enemy Health',
     combatPlayerHealth: 'Player Health',
-    combatControls: '[1] Attack   [2] Flee'
+    combatControls: '[1] Attack   [2] Flee',
+    bananoDialogueNeedBamba: 'Beep boop! I am Nano Banano. Bring me the Holy Bamba from the Central District to power my core!',
+    bananoDialogueThanks: 'Bzzt! Holy Bamba detected! Power levels over 9000! Thank you, hero. The game is complete!',
+    questCompleted: '\n[Quest Completed: The Desert Journey]'
   },
   he: {
     title: 'עלילות חלב ודבש',
@@ -67,6 +73,9 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     combatTitle: 'קרב',
     combatEnemyHealth: 'בריאות אויב',
     combatPlayerHealth: 'בריאות שחקן',
-    combatControls: '[1] תקיפה   [2] בריחה'
+    combatControls: '[1] תקיפה   [2] בריחה',
+    bananoDialogueNeedBamba: 'ביפ בופ! אני נאנו בננו. הבא לי את הבמבה הקדושה מהמרכז כדי להטעין את הליבה שלי!',
+    bananoDialogueThanks: 'בזזז! במבה קדושה זוהתה! רמות האנרגיה מעל 9000! תודה לך, גיבור. המשחק הושלם!',
+    questCompleted: '\n[המשימה הושלמה: המסע במדבר]'
   }
 };

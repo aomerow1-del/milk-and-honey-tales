@@ -3,6 +3,7 @@ import { IsoMath } from './core/IsoMath';
 import { GameMap, MAP_SIZE } from './core/Map';
 import { Player } from './entities/Player';
 import { NPC } from './entities/NPC';
+import { NanoBanano } from './entities/NanoBanano';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
 import { SaveService } from './services/SaveService';
@@ -40,11 +41,14 @@ let hoverGridY = -1;
 let time = 0;
 let lastTime = 0;
 let isDialogueOpen = false;
+let currentDialogueSpeaker = '';
 let isInventoryOpen = false;
 
 const inventoryManager = new InventoryManager();
 const questManager = new QuestManager();
 const combatManager = new CombatManager();
+
+const nanoBanano = new NanoBanano(7, 7);
 
 // The Uncommon Bamba Golem
 const bambaGolem: Enemy = {
@@ -168,6 +172,7 @@ const handleInteraction = () => {
   // Check if NPC is at facing coordinate in the current region
   if (currentRegion === 'central_district' && faceX === npc.gridX && faceY === npc.gridY) {
     isDialogueOpen = true;
+    currentDialogueSpeaker = 'npc';
 
     // Grant starter quest if not already given
     if (!questManager.hasQuest('starter_quest')) {
@@ -178,6 +183,25 @@ const handleInteraction = () => {
         isCompleted: false
       });
     }
+    return;
+  }
+
+  if (currentRegion === 'negev_desert' && faceX === nanoBanano.gridX && faceY === nanoBanano.gridY) {
+    isDialogueOpen = true;
+    currentDialogueSpeaker = 'banano';
+
+    if (inventoryManager.hasItem('holy_bamba')) {
+      inventoryManager.removeItem('holy_bamba');
+      questManager.completeQuest('desert_journey');
+    } else if (!questManager.hasQuest('desert_journey')) {
+      questManager.addQuest({
+        id: 'desert_journey',
+        title: 'The Desert Journey',
+        description: 'Find the Holy Bamba in the Central District and bring it to Nano Banano in the Negev.',
+        isCompleted: false
+      });
+    }
+    return;
   }
 };
 
@@ -334,6 +358,14 @@ const tick = (currentTime: number) => {
       depth: npc.gridX + npc.gridY,
       renderOrder: 1,
       draw: () => npc.draw(ctx, 0, 0)
+    });
+  }
+
+  if (currentRegion === 'negev_desert') {
+    drawList.push({
+      depth: nanoBanano.gridX + nanoBanano.gridY,
+      renderOrder: 1,
+      draw: () => nanoBanano.draw(ctx, 0, 0, time)
     });
   }
 
@@ -538,11 +570,23 @@ const drawDialogue = () => {
   ctx.fillStyle = '#fff';
   const textX = isRtl ? boxX + boxW - 20 : boxX + 20;
 
-  let dialogueText = localeManager.getStrings().npcDialogue;
+  let dialogueText = '';
 
-  // Append quest granted text if they just got it (or if it's active)
-  if (questManager.hasQuest('starter_quest') && !questManager.isQuestCompleted('starter_quest')) {
+  if (currentDialogueSpeaker === 'npc') {
+    dialogueText = localeManager.getStrings().npcDialogue;
+    if (questManager.hasQuest('starter_quest') && !questManager.isQuestCompleted('starter_quest')) {
       dialogueText += localeManager.getStrings().questGranted;
+    }
+  } else if (currentDialogueSpeaker === 'banano') {
+    if (questManager.isQuestCompleted('desert_journey')) {
+      dialogueText = localeManager.getStrings().bananoDialogueThanks;
+      dialogueText += localeManager.getStrings().questCompleted;
+    } else {
+      dialogueText = localeManager.getStrings().bananoDialogueNeedBamba;
+      if (questManager.hasQuest('desert_journey') && !questManager.isQuestCompleted('desert_journey')) {
+         dialogueText += '\n[Quest Granted: The Desert Journey]';
+      }
+    }
   }
 
   const lines = dialogueText.split('\n');
@@ -823,6 +867,8 @@ const init = () => {
       return; // Block other inputs
     }
 
+    // Debug teleport to Banano
+
     // Toggle inventory
     if (e.key.toLowerCase() === 'i') {
       if (!isDialogueOpen) {
@@ -832,10 +878,7 @@ const init = () => {
     }
 
     if (isDialogueOpen) {
-      if (e.key === ' ' || e.key === 'Enter') {
-        isDialogueOpen = false;
-      }
-      return;
+      return; // Block other inputs while dialogue is open
     }
 
     if (isInventoryOpen) {
