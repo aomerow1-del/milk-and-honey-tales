@@ -11,6 +11,13 @@ export interface TranslationStrings {
   regionLabel: string;
   regions: Record<string, string>;
   npcDialogue: string;
+  inventoryTitle: string;
+  emptyInventory: string;
+  questGranted: string;
+  combatTitle: string;
+  combatEnemyHealth: string;
+  combatPlayerHealth: string;
+  combatControls: string;
 }
 
 export const strings: Record<'en' | 'he', TranslationStrings> = {
@@ -29,7 +36,14 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
       'central_district': 'Central District',
       'negev_desert': 'Negev Desert'
     },
-    npcDialogue: 'Shalom! Welcome to Milk & Honey Tales. Watch your step around those rocks.'
+    npcDialogue: 'Shalom! Welcome to Milk & Honey Tales. Watch your step around those rocks.',
+    inventoryTitle: 'Inventory (Press I to close)',
+    emptyInventory: 'Your bag is empty.',
+    questGranted: '\n[Quest Granted: The First Steps]',
+    combatTitle: 'Combat',
+    combatEnemyHealth: 'Enemy Health',
+    combatPlayerHealth: 'Player Health',
+    combatControls: '[1] Attack   [2] Flee'
   },
   he: {
     title: 'עלילות חלב ודבש',
@@ -46,6 +60,13 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
       'central_district': 'מחוז המרכז',
       'negev_desert': 'מדבר הנגב'
     },
-    npcDialogue: 'שלום! ברוכים הבאים לעלילות חלב ודבש. היזהרו כשאתם הולכים ליד הסלעים.'
+    npcDialogue: 'שלום! ברוכים הבאים לעלילות חלב ודבש. היזהרו כשאתם הולכים ליד הסלעים.',
+    inventoryTitle: 'תרמיל (לחץ I לסגירה)',
+    emptyInventory: 'התרמיל שלך ריק.',
+    questGranted: '\n[משימה חדשה: הצעדים הראשונים]',
+    combatTitle: 'קרב',
+    combatEnemyHealth: 'בריאות אויב',
+    combatPlayerHealth: 'בריאות שחקן',
+    combatControls: '[1] תקיפה   [2] בריחה'
   }
 };
