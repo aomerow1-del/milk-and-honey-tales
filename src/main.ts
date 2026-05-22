@@ -4,6 +4,7 @@ import { GameMap, MAP_SIZE } from './core/Map';
 import { Player } from './entities/Player';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
+import { SaveService } from './services/SaveService';
 
 // Setup canvas configuration
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -46,6 +47,12 @@ const keys = {
 let waveTriggerTime = 0;
 let waveCenterX = -1;
 let waveCenterY = -1;
+
+// Transition state
+let isTransitioning = false;
+let transitionAlpha = 0;
+let currentRegion = 'central_district';
+let transitionCallback: (() => void) | null = null;
 
 // Transform client coordinates to logical canvas coordinates (handles object-fit)
 const getLogicalMousePos = (clientX: number, clientY: number) => {
@@ -110,17 +117,62 @@ window.addEventListener('keyup', (e) => {
 
 // Update input logic
 const handlePlayerInput = () => {
-  if (player.isMoving) return;
+  if (player.isMoving || isTransitioning) return;
+
+  let dx = 0;
+  let dy = 0;
 
   if (keys.ArrowUp) {
-    player.move(0, -1, MAP_SIZE); // Moves Y negative (Screen Up-Right)
+    dy = -1; // Moves Y negative (Screen Up-Right)
   } else if (keys.ArrowDown) {
-    player.move(0, 1, MAP_SIZE);  // Moves Y positive (Screen Down-Left)
+    dy = 1;  // Moves Y positive (Screen Down-Left)
   } else if (keys.ArrowLeft) {
-    player.move(-1, 0, MAP_SIZE); // Moves X negative (Screen Up-Left)
+    dx = -1; // Moves X negative (Screen Up-Left)
   } else if (keys.ArrowRight) {
-    player.move(1, 0, MAP_SIZE);  // Moves X positive (Screen Down-Right)
+    dx = 1;  // Moves X positive (Screen Down-Right)
   }
+
+  if (dx !== 0 || dy !== 0) {
+    const nextX = player.gridX + dx;
+    const nextY = player.gridY + dy;
+
+    // Check if player steps off map boundary
+    if (nextX < 0 || nextX >= MAP_SIZE || nextY < 0 || nextY >= MAP_SIZE) {
+      triggerTransition(dx, dy);
+    } else {
+      player.move(dx, dy, map);
+    }
+  }
+};
+
+const triggerTransition = (dx: number, dy: number) => {
+  isTransitioning = true;
+  transitionAlpha = 0;
+  currentRegion = 'negev_desert'; // Simulated new region
+
+  // Set the callback for when screen is fully black
+  transitionCallback = () => {
+    // Warp to opposite edge
+    if (dx > 0) player.gridX = 0;
+    else if (dx < 0) player.gridX = MAP_SIZE - 1;
+
+    if (dy > 0) player.gridY = 0;
+    else if (dy < 0) player.gridY = MAP_SIZE - 1;
+
+    player.targetGridX = player.gridX;
+    player.targetGridY = player.gridY;
+
+    // Instantly snap screen coords & camera to avoid lerping across map
+    const newScreen = IsoMath.tileToScreen(player.gridX, player.gridY);
+    player.screenX = newScreen.x;
+    player.screenY = newScreen.y;
+    camera.snapTo(newScreen.x, newScreen.y + IsoMath.TILE_HEIGHT / 2, canvas.width, canvas.height);
+
+    // Async save to Supabase
+    SaveService.saveState(currentRegion, player.gridX, player.gridY).catch(err => {
+      console.error('Failed to save state during transition', err);
+    });
+  };
 };
 
 // Interface for sorting draw order
@@ -140,7 +192,9 @@ const tick = (currentTime: number) => {
   handlePlayerInput();
 
   // 2. Update player position interpolation
-  player.update(deltaTime);
+  if (!isTransitioning) {
+    player.update(deltaTime);
+  }
 
   // 3. Update Camera position (target the player's center)
   const targetCamX = player.screenX;
@@ -213,6 +267,29 @@ const tick = (currentTime: number) => {
   // LAYER 2: Text-space / interface rendering (Fixed to window)
   drawHUD();
 
+  // LAYER 3: Transitions
+  if (isTransitioning) {
+    if (transitionCallback) {
+      transitionAlpha += deltaTime * 2; // Fade out
+      if (transitionAlpha >= 1) {
+        transitionAlpha = 1;
+        transitionCallback();
+        transitionCallback = null;
+      }
+    } else {
+      transitionAlpha -= deltaTime * 2; // Fade in
+      if (transitionAlpha <= 0) {
+        transitionAlpha = 0;
+        isTransitioning = false;
+      }
+    }
+
+    ctx.save();
+    ctx.fillStyle = `rgba(0, 0, 0, ${transitionAlpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+
   requestAnimationFrame(tick);
 };
 
@@ -242,10 +319,17 @@ const drawTile = (x: number, y: number) => {
 
   const isHovered = x === hoverGridX && y === hoverGridY;
   const type = map.getTile(x, y);
+  const obstacle = map.getObstacle(x, y);
 
   let topColor = type === 0 ? '#1b5e20' : '#2e7d32';
   let leftColor = type === 0 ? '#124116' : '#1b5e20';
   let rightColor = type === 0 ? '#0a270d' : '#124116';
+
+  if (obstacle === 1) {
+    topColor = '#424242';
+    leftColor = '#212121';
+    rightColor = '#111111';
+  }
 
   if (isHovered) {
     topColor = '#4db6ac';
@@ -347,8 +431,9 @@ const drawHUD = () => {
   // Region Loading Logs
   ctx.font = 'italic 400 11px "Outfit", sans-serif';
   ctx.fillStyle = '#ffd54f';
+  const regionText = isRtl ? `אזור נוכחי: ${currentRegion}` : `Region: ${currentRegion}`;
   ctx.fillText(
-    localeManager.getStrings().regionLoading,
+    regionText,
     textX,
     cardY + 62
   );

@@ -1,4 +1,5 @@
 import { IsoMath } from '../core/IsoMath';
+import { GameMap } from '../core/Map';
 
 // ---------------------------------------------------------------------------
 // Sprite sheet configuration
@@ -85,13 +86,15 @@ export class Player {
    * correct spritesheet row shows from the very first rendered frame.
    * Boundary-clamped to [0, mapSize).
    */
-  public move(dx: number, dy: number, mapSize: number): void {
+  public move(dx: number, dy: number, map: GameMap): void {
     if (this.isMoving) return;
 
     const nextX = this.gridX + dx;
     const nextY = this.gridY + dy;
 
-    if (nextX >= 0 && nextX < mapSize && nextY >= 0 && nextY < mapSize) {
+    // Check if the destination is passable or if we are going out of bounds (which triggers transition)
+    // We reject input only if the destination is an obstacle on the map (isPassable == false)
+    if (map.isPassable(nextX, nextY)) {
       this.targetGridX = nextX;
       this.targetGridY = nextY;
       this.isMoving    = true;
