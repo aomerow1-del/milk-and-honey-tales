@@ -2,6 +2,7 @@ import './index.css';
 import { IsoMath } from './core/IsoMath';
 import { GameMap, MAP_SIZE } from './core/Map';
 import { Player } from './entities/Player';
+import { NPC } from './entities/NPC';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
 import { SaveService } from './services/SaveService';
@@ -17,6 +18,7 @@ canvas.height = 540;
 // Instantiate managers and entities
 const map = new GameMap();
 const player = new Player(0, 0);
+const npc = new NPC(3, 3);
 const camera = new Camera();
 const localeManager = LocaleManager.getInstance();
 
@@ -34,6 +36,7 @@ let hoverGridX = -1;
 let hoverGridY = -1;
 let time = 0;
 let lastTime = 0;
+let isDialogueOpen = false;
 
 // Keyboard input state (supports WASD and arrow keys)
 const keys = {
@@ -99,8 +102,32 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   } else if (key === ' ' || key === 'Enter') {
     e.preventDefault();
+    handleInteraction();
   }
 });
+
+const handleInteraction = () => {
+  if (isTransitioning) return;
+
+  if (isDialogueOpen) {
+    isDialogueOpen = false; // Close dialogue on next press
+    return;
+  }
+
+  // Determine facing coordinate
+  let faceX = player.gridX;
+  let faceY = player.gridY;
+
+  if (player.facingDirection === 'up-right') faceY -= 1;
+  else if (player.facingDirection === 'down-left') faceY += 1;
+  else if (player.facingDirection === 'up-left') faceX -= 1;
+  else if (player.facingDirection === 'down-right') faceX += 1;
+
+  // Check if NPC is at facing coordinate in the current region
+  if (currentRegion === 'central_district' && faceX === npc.gridX && faceY === npc.gridY) {
+    isDialogueOpen = true;
+  }
+};
 
 window.addEventListener('keyup', (e) => {
   const key = e.key;
@@ -117,7 +144,7 @@ window.addEventListener('keyup', (e) => {
 
 // Update input logic
 const handlePlayerInput = () => {
-  if (player.isMoving || isTransitioning) return;
+  if (player.isMoving || isTransitioning || isDialogueOpen) return;
 
   let dx = 0;
   let dy = 0;
@@ -148,10 +175,15 @@ const handlePlayerInput = () => {
 const triggerTransition = (dx: number, dy: number) => {
   isTransitioning = true;
   transitionAlpha = 0;
-  currentRegion = 'negev_desert'; // Simulated new region
+
+  // Toggle region based on current region
+  currentRegion = currentRegion === 'central_district' ? 'negev_desert' : 'central_district';
 
   // Set the callback for when screen is fully black
   transitionCallback = () => {
+    // Load new map layout
+    map.loadRegion(currentRegion);
+
     // Warp to opposite edge
     if (dx > 0) player.gridX = 0;
     else if (dx < 0) player.gridX = MAP_SIZE - 1;
@@ -245,6 +277,14 @@ const tick = (currentTime: number) => {
     draw: () => player.draw(ctx, 0, 0)
   });
 
+  if (currentRegion === 'central_district') {
+    drawList.push({
+      depth: npc.gridX + npc.gridY,
+      renderOrder: 1,
+      draw: () => npc.draw(ctx, 0, 0)
+    });
+  }
+
   // Sort drawList: ascending depth, then renderOrder
   drawList.sort((a, b) => {
     if (Math.abs(a.depth - b.depth) < 0.001) {
@@ -266,6 +306,9 @@ const tick = (currentTime: number) => {
 
   // LAYER 2: Text-space / interface rendering (Fixed to window)
   drawHUD();
+  if (isDialogueOpen) {
+    drawDialogue();
+  }
 
   // LAYER 3: Transitions
   if (isTransitioning) {
@@ -325,10 +368,26 @@ const drawTile = (x: number, y: number) => {
   let leftColor = type === 0 ? '#124116' : '#1b5e20';
   let rightColor = type === 0 ? '#0a270d' : '#124116';
 
+  if (type === 2) {
+    topColor = '#ffb300';
+    leftColor = '#ff8f00';
+    rightColor = '#ff6f00';
+  } else if (type === 3) {
+    topColor = '#ffca28';
+    leftColor = '#ffb300';
+    rightColor = '#ff8f00';
+  }
+
   if (obstacle === 1) {
-    topColor = '#424242';
-    leftColor = '#212121';
-    rightColor = '#111111';
+    if (currentRegion === 'negev_desert') {
+      topColor = '#8d6e63';
+      leftColor = '#5d4037';
+      rightColor = '#3e2723';
+    } else {
+      topColor = '#424242';
+      leftColor = '#212121';
+      rightColor = '#111111';
+    }
   }
 
   if (isHovered) {
@@ -386,6 +445,41 @@ const drawTile = (x: number, y: number) => {
   ctx.restore();
 };
 
+const drawDialogue = () => {
+  ctx.save();
+  const isRtl = localeManager.getLocale() === 'he';
+  ctx.direction = localeManager.getCanvasDirection();
+  ctx.textAlign = localeManager.getTextAlign();
+
+  const boxW = 500;
+  const boxH = 100;
+  const boxX = canvas.width / 2 - boxW / 2;
+  const boxY = canvas.height - boxH - 40;
+
+  // Background
+  ctx.fillStyle = 'rgba(20, 20, 30, 0.95)';
+  ctx.strokeStyle = '#81c784';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(boxX, boxY, boxW, boxH, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  // Text
+  ctx.font = '16px "Outfit", "Rubik", sans-serif';
+  ctx.fillStyle = '#fff';
+  const textX = isRtl ? boxX + boxW - 20 : boxX + 20;
+  ctx.fillText(localeManager.getStrings().npcDialogue, textX, boxY + 40);
+
+  // Helper text
+  ctx.font = '12px "Outfit", sans-serif';
+  ctx.fillStyle = '#78909c';
+  const helperText = isRtl ? 'הקש רווח להמשך ▼' : 'Press Space to continue ▼';
+  ctx.fillText(helperText, textX, boxY + boxH - 20);
+
+  ctx.restore();
+};
+
 // HUD Canvas drawing logic
 const drawHUD = () => {
   ctx.save();
@@ -431,7 +525,8 @@ const drawHUD = () => {
   // Region Loading Logs
   ctx.font = 'italic 400 11px "Outfit", sans-serif';
   ctx.fillStyle = '#ffd54f';
-  const regionText = isRtl ? `אזור נוכחי: ${currentRegion}` : `Region: ${currentRegion}`;
+  const displayRegion = localeManager.getStrings().regions[currentRegion] || currentRegion;
+  const regionText = `${localeManager.getStrings().regionLabel}${displayRegion}`;
   ctx.fillText(
     regionText,
     textX,
@@ -441,7 +536,8 @@ const drawHUD = () => {
   // Player Grid Status
   ctx.font = '500 12px "Outfit", sans-serif';
   ctx.fillStyle = '#81c784';
-  const playerText = `${isRtl ? 'מיקום שחקן' : 'Player Grid'}: [X: ${player.gridX}, Y: ${player.gridY}]${player.isMoving ? (isRtl ? ' (בתנועה...)' : ' (Moving...)') : ''}`;
+  const movingText = player.isMoving ? localeManager.getStrings().moving : '';
+  const playerText = `${localeManager.getStrings().playerGrid}: [X: ${player.gridX}, Y: ${player.gridY}]${movingText}`;
   ctx.fillText(
     playerText,
     textX,
@@ -452,8 +548,8 @@ const drawHUD = () => {
   ctx.font = '400 11px "Outfit", sans-serif';
   ctx.fillStyle = hoverGridX !== -1 ? '#80cbc4' : '#78909c';
   const hoverText = hoverGridX !== -1
-    ? `${isRtl ? 'רחף אריח' : 'Hover Tile'}: [X: ${hoverGridX}, Y: ${hoverGridY}]`
-    : `${isRtl ? 'אין אריח מסומן' : 'No hover tile'}`;
+    ? `${localeManager.getStrings().hoverTile}: [X: ${hoverGridX}, Y: ${hoverGridY}]`
+    : localeManager.getStrings().noHoverTile;
   ctx.fillText(
     hoverText,
     textX,

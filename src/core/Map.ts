@@ -1,6 +1,7 @@
 export const MAP_SIZE = 10;
 
-export const ObstacleMap: number[][] = [
+// Central District Map Configuration
+export const CentralDistrictObstacles: number[][] = [
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 1, 1, 0, 0, 0, 0, 1, 1, 0],
   [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -13,9 +14,7 @@ export const ObstacleMap: number[][] = [
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ];
 
-// Basic 10x10 grass map layout
-// Alternating 0 and 1 values represent different shades of grass tiles
-export const GrassMap: number[][] = [
+export const CentralDistrictGrass: number[][] = [
   [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
   [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
   [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
@@ -28,15 +27,65 @@ export const GrassMap: number[][] = [
   [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
 ];
 
+// Negev Desert Map Configuration
+export const NegevDesertObstacles: number[][] = [
+  [0, 0, 0, 0, 0, 0, 0, 1, 1, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 1, 0, 0]
+];
+
+// 2 and 3 represent sand tiles
+export const NegevDesertSand: number[][] = [
+  [2, 3, 2, 3, 2, 3, 2, 3, 2, 3],
+  [3, 2, 3, 2, 3, 2, 3, 2, 3, 2],
+  [2, 3, 2, 3, 2, 3, 2, 3, 2, 3],
+  [3, 2, 3, 2, 3, 2, 3, 2, 3, 2],
+  [2, 3, 2, 3, 2, 3, 2, 3, 2, 3],
+  [3, 2, 3, 2, 3, 2, 3, 2, 3, 2],
+  [2, 3, 2, 3, 2, 3, 2, 3, 2, 3],
+  [3, 2, 3, 2, 3, 2, 3, 2, 3, 2],
+  [2, 3, 2, 3, 2, 3, 2, 3, 2, 3],
+  [3, 2, 3, 2, 3, 2, 3, 2, 3, 2]
+];
+
+export interface RegionData {
+  grid: number[][];
+  obstacles: number[][];
+}
+
+const REGION_REGISTRY: Record<string, RegionData> = {
+  'central_district': {
+    grid: CentralDistrictGrass,
+    obstacles: CentralDistrictObstacles
+  },
+  'negev_desert': {
+    grid: NegevDesertSand,
+    obstacles: NegevDesertObstacles
+  }
+};
+
 export class GameMap {
   public readonly size = MAP_SIZE;
   private grid: number[][];
   private obstacles: number[][];
 
-  constructor() {
-    // Clone layout model to track dynamic ground states/coordinates
-    this.grid = GrassMap.map(row => [...row]);
-    this.obstacles = ObstacleMap.map(row => [...row]);
+  constructor(initialRegion: string = 'central_district') {
+    this.grid = [];
+    this.obstacles = [];
+    this.loadRegion(initialRegion);
+  }
+
+  public loadRegion(regionName: string): void {
+    const data = REGION_REGISTRY[regionName] || REGION_REGISTRY['central_district'];
+    this.grid = data.grid.map(row => [...row]);
+    this.obstacles = data.obstacles.map(row => [...row]);
   }
 
   public getTile(x: number, y: number): number {
