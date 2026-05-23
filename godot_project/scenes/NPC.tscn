@@ -1,0 +1,30 @@
+[gd_scene load_steps=3 format=3 uid="uid://f5l4z3a0y1x7"]
+
+[ext_resource type="Script" path="res://scripts/NPC.gd" id="1_b2u6z"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_npc"]
+radius = 40.0
+
+[node name="NPC" type="Area2D" groups=["npc"]]
+script = ExtResource("1_b2u6z")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_left = -15.0
+offset_top = -15.0
+offset_right = 15.0
+offset_bottom = 15.0
+color = Color(0.8, 0.8, 0.2, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_npc")
+
+[node name="PromptLabel" type="Label" parent="."]
+offset_left = -20.0
+offset_top = -40.0
+offset_right = 20.0
+offset_bottom = -17.0
+text = "[E]"
+horizontal_alignment = 1
+
+[connection signal="body_entered" from="." to="." method="_on_body_entered"]
+[connection signal="body_exited" from="." to="." method="_on_body_exited"]

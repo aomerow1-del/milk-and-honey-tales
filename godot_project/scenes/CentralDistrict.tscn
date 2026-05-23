@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3 uid="uid://h7n6b5c2a3z9"]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_d4w8b"]
+[ext_resource type="PackedScene" uid="uid://c6j2x1y8w9v4" path="res://scenes/Player.tscn" id="2_e5x9c"]
+
+[node name="CentralDistrict" type="Node2D"]
+script = ExtResource("1_d4w8b")
+
+[node name="Background" type="ColorRect" parent="."]
+offset_left = -2000.0
+offset_top = -2000.0
+offset_right = 2000.0
+offset_bottom = 2000.0
+color = Color(0.2, 0.2, 0.3, 1)
+
+[node name="YSort" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="Player" parent="YSort" instance=ExtResource("2_e5x9c")]
