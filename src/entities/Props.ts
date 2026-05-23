@@ -246,3 +246,45 @@ export class Boulder extends Prop {
     ctx.restore();
   }
 }
+
+export class ObsidianSpike extends Prop {
+  public draw(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number, _time: number): void {
+    const screenPos = IsoMath.tileToScreen(this.gridX, this.gridY);
+    const drawX = screenPos.x + cameraX;
+    const drawY = screenPos.y + cameraY + IsoMath.TILE_HEIGHT / 2;
+
+    ctx.save();
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.beginPath();
+    ctx.moveTo(drawX - 10, drawY);
+    ctx.lineTo(drawX, drawY + 6);
+    ctx.lineTo(drawX + 10, drawY);
+    ctx.lineTo(drawX, drawY - 6);
+    ctx.fill();
+
+    // Spike Body
+    ctx.fillStyle = '#100c14'; // very dark slate
+    ctx.strokeStyle = '#6200ea'; // deep purple edge
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(drawX - 8, drawY);
+    ctx.lineTo(drawX, drawY - 35); // tall and sharp
+    ctx.lineTo(drawX + 8, drawY);
+    ctx.lineTo(drawX, drawY + 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner highlight
+    ctx.strokeStyle = 'rgba(156, 39, 176, 0.6)'; // lighter purple
+    ctx.beginPath();
+    ctx.moveTo(drawX, drawY - 35);
+    ctx.lineTo(drawX, drawY + 8);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
