@@ -3,12 +3,14 @@ import { IsoMath } from './core/IsoMath';
 import { GameMap, MAP_SIZE } from './core/Map';
 import { Player } from './entities/Player';
 import { NPC } from './entities/NPC';
+import { NanoBanano } from './entities/NanoBanano';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
 import { SaveService } from './services/SaveService';
 import { InventoryManager } from './core/InventoryManager';
 import { QuestManager } from './core/QuestManager';
 import { CombatManager, type Enemy } from './core/CombatManager';
+import { AudioManager } from './core/AudioManager';
 
 // Setup canvas configuration
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -40,11 +42,16 @@ let hoverGridY = -1;
 let time = 0;
 let lastTime = 0;
 let isDialogueOpen = false;
+let currentDialogueSpeaker = '';
 let isInventoryOpen = false;
+let isShopOpen = false;
 
 const inventoryManager = new InventoryManager();
 const questManager = new QuestManager();
 const combatManager = new CombatManager();
+const audioManager = new AudioManager();
+
+const nanoBanano = new NanoBanano(7, 7);
 
 // The Uncommon Bamba Golem
 const bambaGolem: Enemy = {
@@ -53,7 +60,8 @@ const bambaGolem: Enemy = {
   maxHealth: 150,
   health: 150,
   level: 5,
-  attackPower: 12
+  attackPower: 12,
+  elementType: 'Sand'
 };
 
 inventoryManager.addItem({
@@ -112,6 +120,7 @@ const getLogicalMousePos = (clientX: number, clientY: number) => {
 
 // Setup Keyboard Listeners
 window.addEventListener('keydown', (e) => {
+  audioManager.init(); // Initialize audio context on first user interaction
   const key = e.key;
   if (key === 'ArrowUp' || key === 'w' || key === 'W') {
     keys.ArrowUp = true;
@@ -134,6 +143,8 @@ window.addEventListener('keydown', (e) => {
 const handleInteraction = () => {
   if (isTransitioning) return;
 
+  audioManager.playUIBeep();
+
   if (combatManager.getInCombat()) return;
 
   if (isDialogueOpen) {
@@ -154,6 +165,8 @@ const handleInteraction = () => {
   if (currentRegion === 'central_district' && faceX === 2 && faceY === 2 && !combatManager.getInCombat()) {
     combatManager.startCombat(bambaGolem, (won: boolean) => {
       if (won) {
+        // Player wins the fight and receives currency!
+        inventoryManager.addCurrency(50);
         inventoryManager.addItem({
           id: 'holy_bamba',
           name: 'Holy Bamba',
@@ -168,6 +181,7 @@ const handleInteraction = () => {
   // Check if NPC is at facing coordinate in the current region
   if (currentRegion === 'central_district' && faceX === npc.gridX && faceY === npc.gridY) {
     isDialogueOpen = true;
+    currentDialogueSpeaker = 'npc';
 
     // Grant starter quest if not already given
     if (!questManager.hasQuest('starter_quest')) {
@@ -178,6 +192,25 @@ const handleInteraction = () => {
         isCompleted: false
       });
     }
+    return;
+  }
+
+  if (currentRegion === 'negev_desert' && faceX === nanoBanano.gridX && faceY === nanoBanano.gridY) {
+    isDialogueOpen = true;
+    currentDialogueSpeaker = 'banano';
+
+    if (inventoryManager.hasItem('holy_bamba')) {
+      inventoryManager.removeItem('holy_bamba');
+      questManager.completeQuest('desert_journey');
+    } else if (!questManager.hasQuest('desert_journey')) {
+      questManager.addQuest({
+        id: 'desert_journey',
+        title: 'The Desert Journey',
+        description: 'Find the Holy Bamba in the Central District and bring it to Nano Banano in the Negev.',
+        isCompleted: false
+      });
+    }
+    return;
   }
 };
 
@@ -337,6 +370,14 @@ const tick = (currentTime: number) => {
     });
   }
 
+  if (currentRegion === 'negev_desert') {
+    drawList.push({
+      depth: nanoBanano.gridX + nanoBanano.gridY,
+      renderOrder: 1,
+      draw: () => nanoBanano.draw(ctx, 0, 0, time)
+    });
+  }
+
   // Sort drawList: ascending depth, then renderOrder
   drawList.sort((a, b) => {
     if (Math.abs(a.depth - b.depth) < 0.001) {
@@ -356,10 +397,41 @@ const tick = (currentTime: number) => {
   
   ctx.restore();
 
+  // LAYER 1.5: Dynamic Environment Overlay
+  // Day/Night Cycle Overlay
+  const cycleDuration = 60; // 60 seconds per full cycle
+  const cyclePhase = (time % cycleDuration) / cycleDuration;
+  // Let night be the middle of the cycle
+  const nightIntensity = Math.max(0, Math.sin(cyclePhase * Math.PI * 2));
+
+  if (nightIntensity > 0.05) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = `rgba(10, 10, 40, ${nightIntensity * 0.6})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+
+  // Weather: Sandstorm in Negev
+  if (currentRegion === 'negev_desert') {
+    ctx.save();
+    ctx.fillStyle = 'rgba(215, 204, 153, 0.6)';
+    const particleCount = 100;
+    for (let i = 0; i < particleCount; i++) {
+      // Procedural drift
+      const px = (Math.sin(time + i * 13) * canvas.width + canvas.width + time * 300) % canvas.width;
+      const py = (Math.cos(time + i * 7) * canvas.height + canvas.height + time * 100) % canvas.height;
+      ctx.fillRect(px, py, 4, 4);
+    }
+    ctx.restore();
+  }
+
   // LAYER 2: Text-space / interface rendering (Fixed to window)
   drawHUD();
   if (combatManager.getInCombat()) {
     drawCombatHUD();
+  } else if (isShopOpen) {
+    drawShop();
   } else if (isDialogueOpen) {
     drawDialogue();
   } else if (isInventoryOpen) {
@@ -538,11 +610,23 @@ const drawDialogue = () => {
   ctx.fillStyle = '#fff';
   const textX = isRtl ? boxX + boxW - 20 : boxX + 20;
 
-  let dialogueText = localeManager.getStrings().npcDialogue;
+  let dialogueText = '';
 
-  // Append quest granted text if they just got it (or if it's active)
-  if (questManager.hasQuest('starter_quest') && !questManager.isQuestCompleted('starter_quest')) {
+  if (currentDialogueSpeaker === 'npc') {
+    dialogueText = localeManager.getStrings().npcDialogue;
+    if (questManager.hasQuest('starter_quest') && !questManager.isQuestCompleted('starter_quest')) {
       dialogueText += localeManager.getStrings().questGranted;
+    }
+  } else if (currentDialogueSpeaker === 'banano') {
+    if (questManager.isQuestCompleted('desert_journey')) {
+      dialogueText = localeManager.getStrings().bananoDialogueThanks;
+      dialogueText += localeManager.getStrings().questCompleted;
+    } else {
+      dialogueText = localeManager.getStrings().bananoDialogueNeedBamba;
+      if (questManager.hasQuest('desert_journey') && !questManager.isQuestCompleted('desert_journey')) {
+         dialogueText += '\n[Quest Granted: The Desert Journey]';
+      }
+    }
   }
 
   const lines = dialogueText.split('\n');
@@ -563,6 +647,56 @@ const drawDialogue = () => {
   ctx.fillStyle = '#78909c';
   const helperText = isRtl ? 'הקש רווח להמשך ▼' : 'Press Space to continue ▼';
   ctx.fillText(helperText, textX, boxY + boxH - 20);
+
+  ctx.restore();
+};
+
+const drawShop = () => {
+  ctx.save();
+  const isRtl = localeManager.getLocale() === 'he';
+  ctx.direction = localeManager.getCanvasDirection();
+  ctx.textAlign = localeManager.getTextAlign();
+
+  const boxW = 400;
+  const boxH = 200;
+  const boxX = canvas.width / 2 - boxW / 2;
+  const boxY = canvas.height / 2 - boxH / 2;
+
+  // Background
+  ctx.fillStyle = 'rgba(38, 28, 28, 0.98)';
+  ctx.strokeStyle = '#f4511e';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(boxX, boxY, boxW, boxH, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  // Title
+  ctx.font = '600 20px "Outfit", sans-serif';
+  ctx.fillStyle = '#f4511e';
+  const textX = isRtl ? boxX + boxW - 30 : boxX + 30;
+  ctx.fillText(localeManager.getStrings().shopTitle, textX, boxY + 40);
+
+  // Line separator
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(boxX + 20, boxY + 55);
+  ctx.lineTo(boxX + boxW - 20, boxY + 55);
+  ctx.stroke();
+
+  // Currency
+  ctx.font = '600 16px "Outfit", sans-serif';
+  ctx.fillStyle = '#4caf50';
+  const currencyAmount = inventoryManager.getCurrency();
+  const shekelsString = localeManager.getStrings().shekels || 'Shekels';
+  const currencyText = isRtl ? `${shekelsString}: ${currencyAmount}` : `${shekelsString}: ${currencyAmount}`;
+  ctx.fillText(currencyText, textX, boxY + 80);
+
+  // Shop Options
+  ctx.font = '400 16px "Outfit", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(localeManager.getStrings().shopHint, textX, boxY + 130);
 
   ctx.restore();
 };
@@ -601,9 +735,17 @@ const drawInventory = () => {
   ctx.lineTo(boxX + boxW - 20, boxY + 55);
   ctx.stroke();
 
+  // Currency
+  ctx.font = '600 16px "Outfit", sans-serif';
+  ctx.fillStyle = '#4caf50';
+  const currencyAmount = inventoryManager.getCurrency();
+  const shekelsString = localeManager.getStrings().shekels || 'Shekels';
+  const currencyText = isRtl ? `${shekelsString}: ${currencyAmount}` : `${shekelsString}: ${currencyAmount}`;
+  ctx.fillText(currencyText, textX, boxY + 80);
+
   // Items List
   const items = inventoryManager.getItems();
-  let itemY = boxY + 90;
+  let itemY = boxY + 110;
 
   if (items.length === 0) {
     ctx.font = 'italic 16px "Outfit", sans-serif';
@@ -687,6 +829,11 @@ const drawCombatHUD = () => {
   ctx.fillStyle = '#66bb6a';
   ctx.fillText(`${localeManager.getStrings().combatPlayerHealth}: ${pHealth.current}/${pHealth.max}`, textX, boxY + 120);
 
+  // Player Mana
+  const pMana = combatManager.getPlayerMana();
+  ctx.fillStyle = '#42a5f5';
+  ctx.fillText(`${localeManager.getStrings().combatPlayerMana || 'Player Mana'}: ${pMana.current}/${pMana.max}`, textX, boxY + 145);
+
   // Combat Log
   const logYStart = boxY + 160;
   const logs = combatManager.getLog();
@@ -708,11 +855,20 @@ const drawCombatHUD = () => {
         const dmg = damageMatch ? damageMatch[1] : '?';
         displayLog = isRtl ? `האויב תקף וגרם ${dmg} נזק!` : `Enemy attacked and dealt ${dmg} damage!`;
     }
+    else if (logStr.startsWith('combatPlayerSpecialAttack')) {
+        const damageMatch = logStr.match(/"damage":(\d+)/);
+        const dmg = damageMatch ? damageMatch[1] : '?';
+        displayLog = isRtl ? `השתמשת ביכולת מיוחדת וגרמת ${dmg} נזק!` : `You used a special ability and dealt ${dmg} damage!`;
+    }
+    else if (logStr === 'combatSuperEffective') displayLog = isRtl ? 'זה סופר אפקטיבי!' : 'It is super effective!';
+    else if (logStr === 'combatNotEffective') displayLog = isRtl ? 'זה לא מאוד אפקטיבי...' : 'It is not very effective...';
+    else if (logStr === 'combatNotEnoughMana') displayLog = isRtl ? 'אין מספיק מאנה!' : 'Not enough mana!';
     else if (logStr === 'combatWon') displayLog = isRtl ? 'ניצחת בקרב!' : 'You won the battle!';
     else if (logStr === 'combatFled') displayLog = isRtl ? 'ברחת מהקרב!' : 'You fled the battle!';
 
-    if (displayLog.includes('Player') || displayLog.includes('תקפת')) ctx.fillStyle = '#42a5f5';
+    if (displayLog.includes('Player') || displayLog.includes('תקפת') || displayLog.includes('יכולת מיוחדת')) ctx.fillStyle = '#42a5f5';
     else if (displayLog.includes('Enemy') || displayLog.includes('האויב')) ctx.fillStyle = '#ef5350';
+    else if (displayLog.includes('super effective') || displayLog.includes('סופר אפקטיבי')) ctx.fillStyle = '#ffca28';
     else if (displayLog.includes('Won') || displayLog.includes('Fled') || displayLog.includes('ניצחת')) ctx.fillStyle = '#66bb6a';
     else ctx.fillStyle = '#bdbdbd';
 
@@ -722,7 +878,7 @@ const drawCombatHUD = () => {
   // Controls hint
   ctx.font = '600 16px "Outfit", sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(localeManager.getStrings().combatControls, textX, boxY + boxH - 30);
+  ctx.fillText(localeManager.getStrings().combatControls || '[1] Attack   [2] Special   [3] Flee', textX, boxY + boxH - 30);
 
   ctx.restore();
 };
@@ -815,27 +971,59 @@ const drawHUD = () => {
 const init = () => {
   window.addEventListener('keydown', (e) => {
     if (combatManager.getInCombat()) {
+      audioManager.init();
       if (e.key === '1') {
+        audioManager.playAttackSound();
         combatManager.playerActionAttack();
       } else if (e.key === '2') {
+        audioManager.playAttackSound();
+        combatManager.playerActionSpecial();
+      } else if (e.key === '3') {
         combatManager.playerActionFlee();
       }
       return; // Block other inputs
     }
 
+    // Debug teleport to Banano
+
+    if (isShopOpen) {
+      audioManager.init();
+      if (e.key === '1') {
+        if (inventoryManager.removeCurrency(20)) {
+          audioManager.playUIBeep();
+          inventoryManager.addItem({
+            id: 'falafel',
+            name: localeManager.getStrings().falafel || 'Falafel',
+            description: 'Restores health outside combat.',
+            iconColor: '#d4e157'
+          });
+        }
+      } else if (e.key === '2' || e.key === 'Escape') {
+        isShopOpen = false;
+        audioManager.playUIBeep();
+      }
+      return;
+    }
+
+    // Toggle shop key
+    if (e.key.toLowerCase() === 'b') {
+      if (!isDialogueOpen && !combatManager.getInCombat()) {
+        isShopOpen = !isShopOpen;
+        audioManager.playUIBeep();
+      }
+      return;
+    }
+
     // Toggle inventory
     if (e.key.toLowerCase() === 'i') {
-      if (!isDialogueOpen) {
+      if (!isDialogueOpen && !isShopOpen) {
         isInventoryOpen = !isInventoryOpen;
       }
       return;
     }
 
     if (isDialogueOpen) {
-      if (e.key === ' ' || e.key === 'Enter') {
-        isDialogueOpen = false;
-      }
-      return;
+      return; // Block other inputs while dialogue is open
     }
 
     if (isInventoryOpen) {

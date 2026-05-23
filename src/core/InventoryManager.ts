@@ -8,9 +8,29 @@ export interface InventoryItem {
 
 export class InventoryManager {
   private items: Map<string, InventoryItem>;
+  private currency: number;
 
   constructor() {
     this.items = new Map<string, InventoryItem>();
+    this.currency = 0;
+  }
+
+  public getCurrency(): number {
+    return this.currency;
+  }
+
+  public addCurrency(amount: number): void {
+    if (amount > 0) {
+      this.currency += amount;
+    }
+  }
+
+  public removeCurrency(amount: number): boolean {
+    if (amount > 0 && this.currency >= amount) {
+      this.currency -= amount;
+      return true;
+    }
+    return false;
   }
 
   public addItem(item: Omit<InventoryItem, 'quantity'>, amount: number = 1): void {
