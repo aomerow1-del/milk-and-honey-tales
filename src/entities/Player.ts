@@ -20,8 +20,6 @@ const DIRECTION_ROW: Record<string, number> = {
   'up-right':   3, // North
 };
 
-// Direction label used in placeholder sprite debug stamps
-const DIR_LABELS = ['S', 'W', 'E', 'N'];
 // Distinct hat colours per direction so frames are easy to identify at a glance
 const DIR_COLORS = ['#e53935', '#43a047', '#1e88e5', '#fb8c00'];
 
@@ -236,11 +234,10 @@ export class Player {
     offscreen.height = totalH;
     const c = offscreen.getContext('2d')!;
 
-    // Transparent background (nothing to clear – default is transparent)
+    // Transparent background
 
     for (let row = 0; row < 4; row++) {
       const color = DIR_COLORS[row];
-      const label = DIR_LABELS[row];
 
       for (let frame = 0; frame < FRAME_COUNT; frame++) {
         const ox = frame * FRAME_W;
@@ -248,64 +245,106 @@ export class Player {
 
         // Anchor points
         const cx     = ox + FRAME_W / 2;
-        const headCY = oy + 16;
+        const headCY = oy + 20;
 
-        // ── Hat (direction colour indicator) ─────────────────────────────
-        c.fillStyle = color;
-        c.fillRect(cx - 9, headCY - 14, 18, 7);  // dome
-        c.fillRect(cx - 12, headCY - 8, 24, 4);  // brim
+        // Bouncy walk cycle offsets
+        const bounce = (frame % 2 !== 0) ? -3 : 0;
+        const squash = (frame % 2 === 0) ? 1.05 : 0.95;
 
-        // ── Head ─────────────────────────────────────────────────────────
-        c.fillStyle = '#ffcc80';
-        c.beginPath();
-        c.arc(cx, headCY, 9, 0, Math.PI * 2);
-        c.fill();
+        c.save();
+        c.translate(cx, headCY + bounce);
 
-        // ── Eyes (direction-aware) ────────────────────────────────────────
-        c.fillStyle = '#212121';
-        if (row === 0) {
-          // South – full face visible
-          c.fillRect(cx - 4, headCY - 1, 3, 3);
-          c.fillRect(cx + 1,  headCY - 1, 3, 3);
-        } else if (row === 2) {
-          // East – right eye only visible
-          c.fillRect(cx + 2, headCY - 1, 3, 3);
-        } else if (row === 1) {
-          // West – left eye only visible
-          c.fillRect(cx - 5, headCY - 1, 3, 3);
-        }
-        // North (row === 3) – back of head, no eyes
-
-        // ── Body ─────────────────────────────────────────────────────────
-        c.fillStyle = '#556b2f'; // olive green shirt
-        c.fillRect(cx - 7, headCY + 9, 14, 18);
-
-        // ── Arms (opposite swing to legs) ─────────────────────────────────
+        // ── Back Arm (swing) ─────────────────────────────────────────────
         const armSwing = (frame % 2 === 0) ? 4 : -4;
         c.fillStyle = '#ffcc80'; // skin
-        c.fillRect(cx - 12, headCY + 10 + armSwing,  5, 12); // left arm
-        c.fillRect(cx +  7, headCY + 10 - armSwing,  5, 12); // right arm
+        c.beginPath();
+        if (row === 1 || row === 3) {
+            c.ellipse(4, 12 - armSwing, 4, 7, -0.2 * armSwing, 0, Math.PI * 2);
+        } else {
+            c.ellipse(-4, 12 + armSwing, 4, 7, 0.2 * armSwing, 0, Math.PI * 2);
+        }
+        c.fill();
 
-        // ── Shorts ───────────────────────────────────────────────────────
-        c.fillStyle = '#8d6e63';
-        c.fillRect(cx - 7, headCY + 27, 14, 7);
+        // ── Back Leg ─────────────────────────────────────────────────────
+        const legSwing = (frame % 2 === 0) ? 5 : -5;
+        c.fillStyle = '#8d6e63'; // pants
+        c.beginPath();
+        if (row === 1 || row === 3) {
+            c.ellipse(3, 24 - legSwing, 5, 8, -0.1 * legSwing, 0, Math.PI * 2);
+        } else {
+            c.ellipse(-3, 24 + legSwing, 5, 8, 0.1 * legSwing, 0, Math.PI * 2);
+        }
+        c.fill();
 
-        // ── Legs ─────────────────────────────────────────────────────────
-        const legSwing = (frame % 2 === 0) ? 4 : -4;
-        c.fillStyle = '#d7ccc8'; // skin
-        c.fillRect(cx - 7, headCY + 34 + legSwing,  5, 14); // left
-        c.fillRect(cx + 2, headCY + 34 - legSwing,  5, 14); // right
+        // ── Body (Rounded, organic) ──────────────────────────────────────
+        c.scale(1, squash);
 
-        // ── Shoes ────────────────────────────────────────────────────────
-        c.fillStyle = '#3e2723';
-        c.fillRect(cx - 8, headCY + 48 + legSwing,  6, 4);
-        c.fillRect(cx + 2, headCY + 48 - legSwing,  6, 4);
+        // Torso gradient
+        const bodyGrad = c.createRadialGradient(0, 10, 0, 0, 10, 15);
+        bodyGrad.addColorStop(0, '#7cb342'); // soft green
+        bodyGrad.addColorStop(1, '#558b2f');
 
-        // ── Debug stamp (direction letter + frame number) ─────────────────
-        c.fillStyle  = 'rgba(255, 255, 255, 0.35)';
-        c.font       = '7px monospace';
-        c.textAlign  = 'left';
-        c.fillText(`${label}${frame}`, ox + 2, oy + FRAME_H - 3);
+        c.fillStyle = bodyGrad;
+        c.beginPath();
+        c.ellipse(0, 12, 10, 14, 0, 0, Math.PI * 2);
+        c.fill();
+
+        // ── Head ─────────────────────────────────────────────────────────
+        c.fillStyle = '#ffcc80'; // skin
+        c.beginPath();
+        c.ellipse(0, 0, 11, 10, 0, 0, Math.PI * 2);
+        c.fill();
+
+        // ── Hat (direction colour indicator, soft beanie) ────────────────
+        c.fillStyle = color;
+        c.beginPath();
+        c.ellipse(0, -7, 10, 6, 0, Math.PI, 0); // top half
+        c.fill();
+        c.beginPath();
+        c.ellipse(0, -7, 11, 3, 0, 0, Math.PI * 2); // brim
+        c.fill();
+
+        // ── Eyes (direction-aware, softer and cuter) ──────────────────────
+        c.fillStyle = '#3e2723'; // soft dark brown
+        if (row === 0) {
+          // South – full face visible
+          c.beginPath(); c.ellipse(-4, 0, 2, 3, 0, 0, Math.PI * 2); c.fill();
+          c.beginPath(); c.ellipse(4, 0, 2, 3, 0, 0, Math.PI * 2); c.fill();
+          // Blush
+          c.fillStyle = 'rgba(233, 30, 99, 0.3)';
+          c.beginPath(); c.ellipse(-6, 3, 3, 1.5, 0, 0, Math.PI * 2); c.fill();
+          c.beginPath(); c.ellipse(6, 3, 3, 1.5, 0, 0, Math.PI * 2); c.fill();
+        } else if (row === 2) {
+          // East – right eye only visible
+          c.beginPath(); c.ellipse(5, 0, 2, 3, 0, 0, Math.PI * 2); c.fill();
+        } else if (row === 1) {
+          // West – left eye only visible
+          c.beginPath(); c.ellipse(-5, 0, 2, 3, 0, 0, Math.PI * 2); c.fill();
+        }
+
+        c.scale(1, 1/squash); // reset squash
+
+        // ── Front Leg ────────────────────────────────────────────────────
+        c.fillStyle = '#6d4c41'; // darker pants
+        c.beginPath();
+        if (row === 1 || row === 3) {
+            c.ellipse(-3, 24 + legSwing, 5, 8, 0.1 * legSwing, 0, Math.PI * 2);
+        } else {
+            c.ellipse(3, 24 - legSwing, 5, 8, -0.1 * legSwing, 0, Math.PI * 2);
+        }
+        c.fill();
+
+        // ── Front Arm ────────────────────────────────────────────────────
+        c.fillStyle = '#ffe0b2'; // skin highlight
+        c.beginPath();
+        if (row === 1 || row === 3) {
+            c.ellipse(-4, 12 + armSwing, 4, 7, 0.2 * armSwing, 0, Math.PI * 2);
+        } else {
+            c.ellipse(4, 12 - armSwing, 4, 7, -0.2 * armSwing, 0, Math.PI * 2);
+        }
+        c.fill();
+
+        c.restore();
       }
     }
 

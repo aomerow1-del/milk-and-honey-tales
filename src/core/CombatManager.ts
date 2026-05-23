@@ -47,6 +47,14 @@ export class CombatManager {
     return { current: this.playerMana, max: this.playerMaxMana };
   }
 
+  public healPlayer(amount: number) {
+    this.playerHealth = Math.min(this.playerMaxHealth, this.playerHealth + amount);
+  }
+
+  public restoreMana(amount: number) {
+    this.playerMana = Math.min(this.playerMaxMana, this.playerMana + amount);
+  }
+
   public getLog() {
     return this.log;
   }

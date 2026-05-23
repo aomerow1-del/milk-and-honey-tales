@@ -7,6 +7,7 @@ import { NanoBanano } from './entities/NanoBanano';
 import { SabraPlant } from './entities/SabraPlant';
 import { Arava } from './entities/Arava';
 import { Macabi } from './entities/Macabi';
+import { OliveTree, AncientJar, OasisPool, Boulder } from './entities/Props';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
 import { SaveService } from './services/SaveService';
@@ -66,6 +67,63 @@ const arava = new Arava(8, 8);
 const macabi = new Macabi(4, 7);
 
 // The Uncommon Bamba Golem
+// Procedural Props Registry
+const props: {
+  oliveTrees: OliveTree[];
+  ancientJars: AncientJar[];
+  oasisPools: OasisPool[];
+  boulders: Boulder[];
+} = {
+  oliveTrees: [],
+  ancientJars: [],
+  oasisPools: [],
+  boulders: []
+};
+
+// Seeded RNG for consistent procedural generation
+const seededRandom = (seed: number) => {
+  let x = Math.sin(seed++) * 10000;
+  return x - Math.floor(x);
+};
+
+const populateProps = (regionName: string) => {
+  props.oliveTrees = [];
+  props.ancientJars = [];
+  props.oasisPools = [];
+  props.boulders = [];
+
+  let seedOffset = regionName === 'central_district' ? 100 : 500;
+
+  for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < MAP_SIZE; x++) {
+      if (!map.isPassable(x, y)) continue;
+
+      // Don't populate on top of important coordinates (0,0 is player spawn)
+      if (x < 2 && y < 2) continue;
+      // Avoid existing entity spawns
+      if (x === npc.gridX && y === npc.gridY) continue;
+      if (x === arava.gridX && y === arava.gridY) continue;
+      if (x === macabi.gridX && y === macabi.gridY) continue;
+      if (x === nanoBanano.gridX && y === nanoBanano.gridY) continue;
+
+      const rand = seededRandom(x * 13 + y * 7 + seedOffset);
+
+      if (regionName === 'central_district') {
+        if (rand < 0.1) props.oliveTrees.push(new OliveTree(x, y));
+        else if (rand > 0.9) props.ancientJars.push(new AncientJar(x, y));
+      } else if (regionName === 'negev_desert') {
+        if (rand < 0.05) props.oasisPools.push(new OasisPool(x, y));
+        else if (rand > 0.85) props.boulders.push(new Boulder(x, y));
+        else if (rand > 0.75 && rand <= 0.85) props.ancientJars.push(new AncientJar(x, y));
+      }
+    }
+  }
+
+};
+
+// Populate initial map
+populateProps('central_district');
+
 const bambaGolem: Enemy = {
   id: 'bamba_golem',
   nameKey: 'Bamba Golem',
@@ -281,6 +339,29 @@ const handleInteraction = () => {
       }
     }
   }
+
+  // Interactive Procedural Props
+  for (const jar of props.ancientJars) {
+    if (faceX === jar.gridX && faceY === jar.gridY && !jar.broken) {
+      jar.broken = true;
+      inventoryManager.addCurrency(Math.floor(Math.random() * 15) + 5);
+      isDialogueOpen = true;
+      currentDialogueSpeaker = 'jar_broken';
+      audioManager.playAttackSound(); // CRACK sound
+      return;
+    }
+  }
+
+  for (const oasis of props.oasisPools) {
+    if (faceX === oasis.gridX && faceY === oasis.gridY) {
+      combatManager.healPlayer(1000); // Full heal
+      combatManager.restoreMana(1000); // Full mana
+      isDialogueOpen = true;
+      currentDialogueSpeaker = 'oasis_heal';
+      audioManager.playUIBeep();
+      return;
+    }
+  }
 };
 
 window.addEventListener('keyup', (e) => {
@@ -369,6 +450,7 @@ const triggerTransition = (dx: number, dy: number) => {
   transitionCallback = () => {
     // Load new map layout
     map.loadRegion(currentRegion);
+    populateProps(currentRegion);
 
     // Warp to opposite edge
     if (dx > 0) player.gridX = 0;
@@ -461,17 +543,31 @@ const tick = (currentTime: number) => {
     draw: () => player.draw(ctx, 0, 0)
   });
 
+  // Add Dynamic Props to draw list
+  for (const tree of props.oliveTrees) {
+    drawList.push({ depth: tree.gridX + tree.gridY, renderOrder: 1, draw: () => tree.draw(ctx, 0, 0, time) });
+  }
+  for (const jar of props.ancientJars) {
+    drawList.push({ depth: jar.gridX + jar.gridY, renderOrder: 1, draw: () => jar.draw(ctx, 0, 0, time) });
+  }
+  for (const oasis of props.oasisPools) {
+    drawList.push({ depth: oasis.gridX + oasis.gridY, renderOrder: 0.5, draw: () => oasis.draw(ctx, 0, 0, time) });
+  }
+  for (const boulder of props.boulders) {
+    drawList.push({ depth: boulder.gridX + boulder.gridY, renderOrder: 1, draw: () => boulder.draw(ctx, 0, 0) });
+  }
+
   if (currentRegion === 'central_district') {
     drawList.push({
       depth: npc.gridX + npc.gridY,
       renderOrder: 1,
-      draw: () => npc.draw(ctx, 0, 0)
+      draw: () => npc.draw(ctx, 0, 0, time)
     });
 
     drawList.push({
       depth: macabi.gridX + macabi.gridY,
       renderOrder: 1,
-      draw: () => macabi.draw(ctx, 0, 0)
+      draw: () => macabi.draw(ctx, 0, 0, time)
     });
   }
 
@@ -578,6 +674,20 @@ const tick = (currentTime: number) => {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
   }
+
+  // LAYER 4: Post-Processing Vignette (Cinematic polish)
+  ctx.save();
+  const vignetteGrad = ctx.createRadialGradient(
+    canvas.width / 2, canvas.height / 2, canvas.height * 0.4,
+    canvas.width / 2, canvas.height / 2, canvas.width * 0.7
+  );
+  vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  vignetteGrad.addColorStop(1, 'rgba(10, 5, 20, 0.6)'); // deep rich shadow vignette
+  ctx.fillStyle = vignetteGrad;
+  // Blend mode for a richer color burn effect
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
 
   requestAnimationFrame(tick);
 };
@@ -753,6 +863,10 @@ const drawDialogue = () => {
       dialogueText = localeManager.getStrings().aravaDialogueNeedSabra;
   } else if (currentDialogueSpeaker === 'arava_thanks') {
       dialogueText = localeManager.getStrings().aravaDialogueThanks;
+  } else if (currentDialogueSpeaker === 'jar_broken') {
+      dialogueText = localeManager.getStrings().jarBroken;
+  } else if (currentDialogueSpeaker === 'oasis_heal') {
+      dialogueText = localeManager.getStrings().oasisHeal;
   }
 
   const lines = dialogueText.split('\n');
