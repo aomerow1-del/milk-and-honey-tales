@@ -7,7 +7,7 @@ import { NanoBanano } from './entities/NanoBanano';
 import { SabraPlant } from './entities/SabraPlant';
 import { Arava } from './entities/Arava';
 import { Macabi } from './entities/Macabi';
-import { OliveTree, AncientJar, OasisPool, Boulder } from './entities/Props';
+import { OliveTree, AncientJar, OasisPool, Boulder, ObsidianSpike } from './entities/Props';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
 import { InventoryManager } from './core/InventoryManager';
@@ -73,11 +73,13 @@ const props: {
   ancientJars: AncientJar[];
   oasisPools: OasisPool[];
   boulders: Boulder[];
+  obsidianSpikes: ObsidianSpike[];
 } = {
   oliveTrees: [],
   ancientJars: [],
   oasisPools: [],
-  boulders: []
+  boulders: [],
+  obsidianSpikes: []
 };
 
 // Seeded RNG for consistent procedural generation
@@ -91,6 +93,7 @@ const populateProps = (regionName: string) => {
   props.ancientJars = [];
   props.oasisPools = [];
   props.boulders = [];
+  props.obsidianSpikes = [];
 
   let seedOffset = regionName === 'central_district' ? 100 : 500;
 
@@ -109,12 +112,16 @@ const populateProps = (regionName: string) => {
       const rand = seededRandom(x * 13 + y * 7 + seedOffset);
 
       if (regionName === 'central_district') {
-        if (rand < 0.1) props.oliveTrees.push(new OliveTree(x, y));
-        else if (rand > 0.9) props.ancientJars.push(new AncientJar(x, y));
+        // High density in Tartarus-style central district
+        if (rand < 0.2) props.oliveTrees.push(new OliveTree(x, y));
+        else if (rand > 0.8) props.ancientJars.push(new AncientJar(x, y));
+        else if (rand > 0.65 && rand <= 0.8) props.obsidianSpikes.push(new ObsidianSpike(x, y));
       } else if (regionName === 'negev_desert') {
-        if (rand < 0.05) props.oasisPools.push(new OasisPool(x, y));
-        else if (rand > 0.85) props.boulders.push(new Boulder(x, y));
-        else if (rand > 0.75 && rand <= 0.85) props.ancientJars.push(new AncientJar(x, y));
+        // High density of boulders and jars in Magma desert
+        if (rand < 0.1) props.oasisPools.push(new OasisPool(x, y));
+        else if (rand > 0.7) props.boulders.push(new Boulder(x, y));
+        else if (rand > 0.5 && rand <= 0.7) props.ancientJars.push(new AncientJar(x, y));
+        else if (rand > 0.4 && rand <= 0.5) props.obsidianSpikes.push(new ObsidianSpike(x, y));
       }
     }
   }
@@ -611,6 +618,9 @@ const tick = (currentTime: number) => {
   }
   for (const boulder of props.boulders) {
     drawList.push({ depth: boulder.gridX + boulder.gridY, renderOrder: 1, draw: () => boulder.draw(ctx, 0, 0) });
+  }
+  for (const spike of props.obsidianSpikes) {
+    drawList.push({ depth: spike.gridX + spike.gridY, renderOrder: 1, draw: () => spike.draw(ctx, 0, 0, time) });
   }
 
   if (currentRegion === 'central_district') {
