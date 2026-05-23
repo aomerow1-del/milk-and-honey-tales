@@ -14,6 +14,7 @@ import { InventoryManager } from './core/InventoryManager';
 import { QuestManager } from './core/QuestManager';
 import { CombatManager, type CombatEntity } from './core/CombatManager';
 import { AudioManager } from './core/AudioManager';
+import { SaveService } from './services/SaveService';
 
 // Setup canvas configuration
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -250,33 +251,29 @@ const handleInteraction = () => {
 
   // Special Encounter at (2, 2) in Central District
   if (currentRegion === 'central_district' && faceX === 2 && faceY === 2) {
-      if (!inventoryManager.hasItem('holy_bamba')) {
-          inventoryManager.addItem({
-              id: 'holy_bamba',
-              name: localeManager.getStrings().holyBamba || 'Holy Bamba',
-              description: 'A divine peanut snack.',
-              iconColor: '#ffca28'
-          });
-      }
+      if (inventoryManager.hasItem('holy_bamba')) return;
 
-      // Spawn real-time enemies instead of modal combat
-      const newEnemy: CombatEntity = {
-          id: 'spawned_enemy',
-          nameKey: 'Enemy',
-          maxHealth: 100,
-          health: 100,
-          level: 1,
-          attackPower: 10,
-          elementType: 'Shadow',
-          gridX: player.gridX + (Math.random() > 0.5 ? 4 : -4),
-          gridY: player.gridY + (Math.random() > 0.5 ? 4 : -4),
-          width: 1,
-          height: 1,
-          isDead: false,
-          velocity: {x: 0, y: 0},
-          damageFlashTimer: 0
-      };
-      combatManager.spawnEnemy(newEnemy);
+      const isBossAlive = combatManager.getEnemies().some(e => e.id === 'spawned_enemy');
+      if (!isBossAlive) {
+          // Spawn real-time enemies instead of modal combat
+          const newEnemy: CombatEntity = {
+              id: 'spawned_enemy',
+              nameKey: 'Enemy',
+              maxHealth: 100,
+              health: 100,
+              level: 1,
+              attackPower: 10,
+              elementType: 'Shadow',
+              gridX: player.gridX + (Math.random() > 0.5 ? 4 : -4),
+              gridY: player.gridY + (Math.random() > 0.5 ? 4 : -4),
+              width: 1,
+              height: 1,
+              isDead: false,
+              velocity: {x: 0, y: 0},
+              damageFlashTimer: 0
+          };
+          combatManager.spawnEnemy(newEnemy);
+      }
 
     return;
   }
@@ -299,8 +296,7 @@ const handleInteraction = () => {
   }
 
   if (currentRegion === 'central_district' && faceX === macabi.gridX && faceY === macabi.gridY) {
-    isDialogueOpen = true;
-    currentDialogueSpeaker = 'macabi';
+    isShopOpen = true; // Use macabi to open Boons system
     return;
   }
 
@@ -445,6 +441,13 @@ const handlePlayerInput = (deltaTime: number) => {
   }
 
   if (keys.Shift) {
+      // Dash requires movement input. If stationary, dash forward.
+      if (dx === 0 && dy === 0) {
+          if (player.facingDirection === 'down-right') { dx = 1; dy = 0; }
+          else if (player.facingDirection === 'up-left') { dx = -1; dy = 0; }
+          else if (player.facingDirection === 'down-left') { dx = 0; dy = 1; }
+          else if (player.facingDirection === 'up-right') { dx = 0; dy = -1; }
+      }
       player.dash(dx, dy);
   }
 
@@ -492,7 +495,15 @@ const tick = (currentTime: number) => {
     handlePlayerInput(deltaTime);
     player.update(deltaTime);
     if (!isDialogueOpen && !isShopOpen && !isInventoryOpen) {
-        combatManager.update(deltaTime, player.gridX, player.gridY, player.isDashing);
+        const bossDefeated = combatManager.update(deltaTime, player.gridX, player.gridY, player.isDashing);
+        if (bossDefeated && !inventoryManager.hasItem('holy_bamba')) {
+            inventoryManager.addItem({
+                id: 'holy_bamba',
+                name: localeManager.getStrings().holyBamba || 'Holy Bamba',
+                description: 'A divine peanut snack.',
+                iconColor: '#ffca28'
+            });
+        }
     }
   }
 
@@ -1249,14 +1260,7 @@ const init = () => {
       return;
     }
 
-    // Toggle shop key
-    if (e.key.toLowerCase() === 'b') {
-      if (!isDialogueOpen) {
-        isShopOpen = !isShopOpen;
-        audioManager.playUIBeep();
-      }
-      return;
-    }
+    // Removed direct shop key to prevent exploit
 
     // Toggle inventory
     if (e.key.toLowerCase() === 'i') {
@@ -1339,8 +1343,6 @@ const init = () => {
   requestAnimationFrame(tick);
 };
 
-window.addEventListener('DOMContentLoaded', init);
-
 const triggerTransition = (dx: number, dy: number) => {
   isTransitioning = true;
   transitionAlpha = 0;
@@ -1350,6 +1352,9 @@ const triggerTransition = (dx: number, dy: number) => {
 
   // Set the callback for when screen is fully black
   transitionCallback = () => {
+    // Async save to Supabase
+    SaveService.saveState(currentRegion, player.gridX, player.gridY);
+
     // Load new map layout
     map.loadRegion(currentRegion);
 
@@ -1370,3 +1375,5 @@ const triggerTransition = (dx: number, dy: number) => {
     populateProps(currentRegion);
   };
 };
+
+window.addEventListener('DOMContentLoaded', init);
