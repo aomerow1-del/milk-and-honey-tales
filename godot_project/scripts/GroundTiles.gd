@@ -98,8 +98,8 @@ func _draw() -> void:
 				# Occasional shaded dune ridges
 				var hash_dune := int(tx * 13 + ty * 7) % 10
 				if hash_dune < 4:
-					var start_pt := Vector2(rect.position.x, rect.position.y + 10.0 + float(hash_dune) * 8.0)
-					var end_pt := Vector2(rect.position.x + TILE_SIZE, rect.position.y + 30.0 + float(hash_dune) * 12.0)
+					var start_pt := Vector2(rect.position.x, rect.position.y + clampf(10.0 + float(hash_dune) * 8.0, 0.0, TILE_SIZE - 2.0))
+					var end_pt := Vector2(rect.position.x + TILE_SIZE, rect.position.y + clampf(30.0 + float(hash_dune) * 12.0, 0.0, TILE_SIZE - 2.0))
 					var shadow_pts := PackedVector2Array([
 						start_pt,
 						end_pt,
