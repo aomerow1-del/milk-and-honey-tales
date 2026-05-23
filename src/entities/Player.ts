@@ -1,74 +1,58 @@
 import { IsoMath } from '../core/IsoMath';
 import { GameMap } from '../core/Map';
 
-// ---------------------------------------------------------------------------
-// Sprite sheet configuration
-// Layout: 4 columns (walk frames) × 4 rows (directions)
-// Row 0 = South / down-left   Row 1 = West / up-left
-// Row 2 = East  / down-right  Row 3 = North / up-right
-// ---------------------------------------------------------------------------
-const FRAME_COUNT = 4;  // walk cycle frames per direction row
-const FRAME_W     = 48; // individual frame width  (pixels)
-const FRAME_H     = 64; // individual frame height (pixels)
-const FRAME_RATE  = 8;  // animation frames per second while walking
+const FRAME_W = 48;
+const FRAME_H = 64;
+const FRAME_COUNT = 4;
+const FRAME_RATE = 6;
 
-// Maps a facing direction string to the corresponding spritesheet row index.
+// Facing directions mapping to row index in the spritesheet
 const DIRECTION_ROW: Record<string, number> = {
-  'down-left':  0, // South
-  'up-left':    1, // West
-  'down-right': 2, // East
-  'up-right':   3, // North
+  'down-right': 0, // South/Southeast
+  'up-left': 1,    // West/Northwest
+  'down-left': 2,  // East/Southwest (Isometric convention tweaks)
+  'up-right': 3    // North/Northeast
 };
 
-// Direction label used in placeholder sprite debug stamps
-const DIR_LABELS = ['S', 'W', 'E', 'N'];
-// Distinct hat colours per direction so frames are easy to identify at a glance
-const DIR_COLORS = ['#e53935', '#43a047', '#1e88e5', '#fb8c00'];
-
 export class Player {
-  // ── Grid / screen state ──────────────────────────────────────────────────
-  public gridX:  number = 0;
-  public gridY:  number = 0;
+  public gridX: number;
+  public gridY: number;
+
   public screenX: number = 0;
   public screenY: number = 0;
 
-  public targetGridX: number = 0;
-  public targetGridY: number = 0;
+  // Hades-style movement physics
+  public moveSpeed: number = 6.0;
+  public isMoving: boolean = false;
 
-  // ── Movement ─────────────────────────────────────────────────────────────
-  public isMoving: boolean  = false;
-  public readonly moveSpeed: number = 4.0; // grid tiles per second
+  // Dash mechanics
+  public isDashing: boolean = false;
+  public dashCooldown: number = 0;
+  public dashDuration: number = 0;
+  public dashDirectionX: number = 0;
+  public dashDirectionY: number = 0;
 
-  // ── Facing direction ─────────────────────────────────────────────────────
-  public facingDirection: 'down-left' | 'down-right' | 'up-left' | 'up-right'
-    = 'down-right';
+  public facingDirection: string = 'down-right';
 
-  // ── Sprite-sheet animation variables ─────────────────────────────────────
-  public  directionRow: number = DIRECTION_ROW['down-right']; // active sheet row
-  public  frameIndex:   number = 0;    // active column within the row
-  private frameTick:    number = 0;    // accumulated time → drives frame advancement
+  private frameIndex: number = 0;
+  private frameTick: number = 0;
+  private directionRow: number = 0;
 
-  // ── Asset ─────────────────────────────────────────────────────────────────
-  private sprite:       HTMLImageElement;
+  private sprite: HTMLImageElement;
   private spriteLoaded: boolean = false;
 
-  // ─────────────────────────────────────────────────────────────────────────
-  constructor(startX: number = 0, startY: number = 0) {
+  constructor(startX: number, startY: number) {
     this.gridX = startX;
     this.gridY = startY;
-    this.targetGridX = startX;
-    this.targetGridY = startY;
 
-    const initialScreen = IsoMath.tileToScreen(startX, startY);
-    this.screenX = initialScreen.x;
-    this.screenY = initialScreen.y;
+    // Immediately snap screen coords to initial grid
+    const screenPos = IsoMath.tileToScreen(this.gridX, this.gridY);
+    this.screenX = screenPos.x;
+    this.screenY = screenPos.y;
 
-    // Load external spritesheet; fall back to a procedurally generated one if
-    // the file is absent (404 / missing public/assets/player_spritesheet.png).
     this.sprite = new Image();
-    this.sprite.onload  = () => { this.spriteLoaded = true; };
+    this.sprite.onload = () => { this.spriteLoaded = true; };
     this.sprite.onerror = () => {
-      // Generate placeholder at runtime – no extra build step required.
       const dataUrl = this.generatePlaceholderSprite();
       const fallback = new Image();
       fallback.onload = () => { this.sprite = fallback; this.spriteLoaded = true; };
@@ -77,47 +61,49 @@ export class Player {
     this.sprite.src = '/assets/player_spritesheet.png';
   }
 
-  // ── Public API ────────────────────────────────────────────────────────────
+  public moveContinuous(dx: number, dy: number, deltaTime: number, map: GameMap): void {
+    // Handle Dash Timers
+    if (this.dashCooldown > 0) this.dashCooldown -= deltaTime;
+    if (this.dashDuration > 0) {
+        this.dashDuration -= deltaTime;
+        // Override input with dash velocity
+        dx = this.dashDirectionX * 18; // Super fast dash speed
+        dy = this.dashDirectionY * 18;
+        if (this.dashDuration <= 0) this.isDashing = false;
+    }
 
-  /**
-   * Attempts to begin movement by one grid cell in the given direction.
-   * Updates directionRow immediately (before the lerp starts) so the
-   * correct spritesheet row shows from the very first rendered frame.
-   * Boundary-clamped to [0, mapSize).
-   */
-  public moveContinuous(dx: number, dy: number, map: GameMap, deltaTime: number): void {
     this.isMoving = (dx !== 0 || dy !== 0);
 
     if (this.isMoving) {
-      // 1. Update direction string
       if (dx > 0 && dy === 0) this.facingDirection = 'down-right';
       else if (dx < 0 && dy === 0) this.facingDirection = 'up-left';
       else if (dy > 0 && dx === 0) this.facingDirection = 'down-left';
       else if (dy < 0 && dx === 0) this.facingDirection = 'up-right';
-      else if (dx > 0 && dy > 0) this.facingDirection = 'down-right'; // Diagonal arbitrary
+      else if (dx > 0 && dy > 0) this.facingDirection = 'down-right';
       else if (dx < 0 && dy > 0) this.facingDirection = 'down-left';
       else if (dx > 0 && dy < 0) this.facingDirection = 'up-right';
       else if (dx < 0 && dy < 0) this.facingDirection = 'up-left';
 
-      // 2. Map to spritesheet row
       this.directionRow = DIRECTION_ROW[this.facingDirection];
 
-      // Normalize diagonal movement
       let mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag > 0) {
+      if (mag > 0 && !this.isDashing) {
         dx = (dx / mag) * this.moveSpeed * deltaTime;
         dy = (dy / mag) * this.moveSpeed * deltaTime;
+      } else if (this.isDashing) {
+        // Dash velocity is already pre-multiplied
+        dx *= deltaTime;
+        dy *= deltaTime;
       }
 
       const nextX = this.gridX + dx;
       const nextY = this.gridY + dy;
 
-      // Calculate the tile coordinate the player is trying to enter
-      // Check collision considering a small bounding box
       const checkX = Math.floor(nextX + 0.5);
       const checkY = Math.floor(nextY + 0.5);
 
-      if (map.isPassable(checkX, checkY)) {
+      // Allow moving out of bounds for region transition triggers, otherwise check passability
+      if (checkX < 0 || checkX >= map.size || checkY < 0 || checkY >= map.size || map.isPassable(checkX, checkY)) {
         this.gridX = nextX;
         this.gridY = nextY;
       } else {
@@ -130,185 +116,176 @@ export class Player {
       }
     }
 
-    // Always update screen position to match current precise grid position
     const screenPos = IsoMath.tileToScreen(this.gridX, this.gridY);
     this.screenX = screenPos.x;
     this.screenY = screenPos.y;
   }
 
-  /**
-   * Advances the frame-animation counter.
-   * Frame ticking only runs while the player is walking; resets on idle.
-   */
+  public dashBaseDuration: number = 0.15;
+  public dashBaseCooldown: number = 0.5;
+
+  public dash(dx: number, dy: number): void {
+      if (this.dashCooldown <= 0 && (dx !== 0 || dy !== 0)) {
+          this.isDashing = true;
+          this.dashDuration = this.dashBaseDuration;
+          this.dashCooldown = this.dashBaseCooldown;
+
+          let mag = Math.sqrt(dx * dx + dy * dy);
+          this.dashDirectionX = dx / mag;
+          this.dashDirectionY = dy / mag;
+      }
+  }
+
   public update(deltaTime: number): void {
     if (!this.isMoving) {
-      // Return to idle pose (frame 0) on the current direction row
       this.frameIndex = 0;
       this.frameTick  = 0;
       return;
     }
 
-    // ── Walk-cycle frame advancement ──────────────────────────────────────
-    this.frameTick += deltaTime * FRAME_RATE;
+    this.frameTick += deltaTime * FRAME_RATE * (this.isDashing ? 3 : 1);
     if (this.frameTick >= 1) {
       this.frameTick -= 1;
       this.frameIndex = (this.frameIndex + 1) % FRAME_COUNT;
     }
   }
 
-  /**
-   * Renders the player avatar.
-   *
-   * If the spritesheet is loaded, draws one clipped frame via the 9-argument
-   * ctx.drawImage signature.  The sprite is anchored so its feet sit at the
-   * centre of the isometric tile diamond the player occupies, matching the
-   * visual convention of the tile renderer in main.ts.
-   *
-   * Falls back to a simple ellipse placeholder while the asset is loading
-   * (should be near-instant in most cases).
-   */
   public draw(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number): void {
-    // The iso-math tile apex (top diamond vertex) sits at (screenX, screenY)
-    // relative to the cameraX/cameraY offsets supplied by the renderer.
     const tileApexX = this.screenX + cameraX;
     const tileApexY = this.screenY + cameraY;
 
-    // The visual "floor centre" of the tile is half a tile height lower.
     const floorCentreX = tileApexX;
     const floorCentreY = tileApexY + IsoMath.TILE_HEIGHT / 2;
 
     ctx.save();
 
-    // ── Ground shadow ellipse ─────────────────────────────────────────────
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    // ── Ground shadow (sharp diamond) ─────────────────────────────────────
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.beginPath();
-    ctx.ellipse(floorCentreX, floorCentreY + 2, 16, 8, 0, 0, Math.PI * 2);
+    ctx.moveTo(floorCentreX, floorCentreY - 4);
+    ctx.lineTo(floorCentreX + 16, floorCentreY + 4);
+    ctx.lineTo(floorCentreX, floorCentreY + 12);
+    ctx.lineTo(floorCentreX - 16, floorCentreY + 4);
+    ctx.closePath();
     ctx.fill();
 
-    // ── Sprite frame or loading placeholder ───────────────────────────────
+    if (this.isDashing) {
+        // Dash afterimage blur
+        ctx.shadowColor = '#d50000';
+        ctx.shadowBlur = 20;
+    }
+
     if (this.spriteLoaded) {
-      // Source clip rectangle on the spritesheet
       const srcX = this.frameIndex   * FRAME_W;
       const srcY = this.directionRow * FRAME_H;
-
-      // Destination rectangle on the canvas.
-      // Horizontally centred on floorCentreX; feet anchored to floorCentreY.
       const destX = floorCentreX - FRAME_W / 2;
       const destY = floorCentreY - FRAME_H;
 
-      ctx.drawImage(
-        this.sprite,      // image source
-        srcX, srcY,       // source top-left corner
-        FRAME_W, FRAME_H, // source clip dimensions
-        destX, destY,     // destination top-left corner
-        FRAME_W, FRAME_H  // destination draw dimensions (1 : 1 – no scaling)
-      );
+      ctx.drawImage(this.sprite, srcX, srcY, FRAME_W, FRAME_H, destX, destY, FRAME_W, FRAME_H);
     } else {
-      // Loading placeholder – coloured circle matching the direction
-      ctx.fillStyle = DIR_COLORS[this.directionRow] ?? '#888';
-      ctx.beginPath();
-      ctx.arc(floorCentreX, floorCentreY - 16, 12, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.restore(); // Pop shadow context before drawing procedural sprite
+      this.drawProceduralHadesSprite(ctx, floorCentreX, floorCentreY);
     }
 
-    ctx.restore();
+    if (this.spriteLoaded) ctx.restore();
   }
 
-  // ── Private helpers ───────────────────────────────────────────────────────
+  private drawProceduralHadesSprite(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+      ctx.save();
+      ctx.translate(cx, cy);
 
-  /**
-   * Procedurally renders a 192 × 256 px placeholder spritesheet onto an
-   * offscreen canvas and returns it as a PNG data URL.
-   *
-   * Layout: 4 columns × 4 rows; each cell is FRAME_W × FRAME_H (48 × 64 px).
-   * Figures are basic pixel-art stick characters with direction-colour hats
-   * and arm / leg swing animation across the four walk frames.
-   *
-   * Replace `public/assets/player_spritesheet.png` with a real asset at any
-   * time – this method will never be called once the file is present.
-   */
+      const bounce = this.isMoving && !this.isDashing ? Math.sin(this.frameTick * Math.PI) * 2 : 0;
+      const tilt = this.isDashing ? 0.2 * Math.sign(this.dashDirectionX || 1) : 0;
+
+      ctx.translate(0, -30 + bounce);
+      ctx.rotate(tilt);
+
+      // Body / Cape (Sharp, angular)
+      ctx.fillStyle = '#111';
+      ctx.strokeStyle = '#d50000'; // Blood red outline
+      ctx.lineWidth = 1.5;
+
+      ctx.beginPath();
+      ctx.moveTo(0, -10); // neck
+      ctx.lineTo(12, 5);  // shoulder right
+      ctx.lineTo(18, 25); // cape point right
+      ctx.lineTo(5, 15);
+      ctx.lineTo(0, 30);  // cape center
+      ctx.lineTo(-5, 15);
+      ctx.lineTo(-18, 25); // cape point left
+      ctx.lineTo(-12, 5);  // shoulder left
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Glowing core/heart
+      ctx.fillStyle = '#ff1744';
+      ctx.shadowColor = '#ff1744';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(4, 5);
+      ctx.lineTo(0, 12);
+      ctx.lineTo(-4, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Head (Angular skull/helm)
+      ctx.fillStyle = '#eee';
+      ctx.strokeStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(0, -25);
+      ctx.lineTo(8, -20);
+      ctx.lineTo(6, -8);
+      ctx.lineTo(0, -5);
+      ctx.lineTo(-6, -8);
+      ctx.lineTo(-8, -20);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Glowing Eyes
+      ctx.fillStyle = '#ff1744';
+      ctx.beginPath();
+      ctx.moveTo(-4, -15);
+      ctx.lineTo(-2, -13);
+      ctx.lineTo(-6, -12);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(4, -15);
+      ctx.lineTo(2, -13);
+      ctx.lineTo(6, -12);
+      ctx.fill();
+
+      // Weapon (Scythe or jagged sword)
+      const armSwing = this.isMoving ? Math.sin(this.frameTick * Math.PI * 2) * 0.5 : 0;
+      ctx.rotate(armSwing);
+
+      ctx.strokeStyle = '#ffb300'; // gold weapon
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(10, 0);
+      ctx.lineTo(25, 20); // hilt
+      ctx.stroke();
+
+      // Blade
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = '#ffb300';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(25, 20);
+      ctx.lineTo(35, 15);
+      ctx.lineTo(45, 30);
+      ctx.lineTo(20, 25);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+  }
+
   private generatePlaceholderSprite(): string {
-    const totalW = FRAME_W * FRAME_COUNT; // 192
-    const totalH = FRAME_H * 4;           // 256
-
-    const offscreen = document.createElement('canvas');
-    offscreen.width  = totalW;
-    offscreen.height = totalH;
-    const c = offscreen.getContext('2d')!;
-
-    // Transparent background (nothing to clear – default is transparent)
-
-    for (let row = 0; row < 4; row++) {
-      const color = DIR_COLORS[row];
-      const label = DIR_LABELS[row];
-
-      for (let frame = 0; frame < FRAME_COUNT; frame++) {
-        const ox = frame * FRAME_W;
-        const oy = row   * FRAME_H;
-
-        // Anchor points
-        const cx     = ox + FRAME_W / 2;
-        const headCY = oy + 16;
-
-        // ── Hat (direction colour indicator) ─────────────────────────────
-        c.fillStyle = color;
-        c.fillRect(cx - 9, headCY - 14, 18, 7);  // dome
-        c.fillRect(cx - 12, headCY - 8, 24, 4);  // brim
-
-        // ── Head ─────────────────────────────────────────────────────────
-        c.fillStyle = '#ffcc80';
-        c.beginPath();
-        c.arc(cx, headCY, 9, 0, Math.PI * 2);
-        c.fill();
-
-        // ── Eyes (direction-aware) ────────────────────────────────────────
-        c.fillStyle = '#212121';
-        if (row === 0) {
-          // South – full face visible
-          c.fillRect(cx - 4, headCY - 1, 3, 3);
-          c.fillRect(cx + 1,  headCY - 1, 3, 3);
-        } else if (row === 2) {
-          // East – right eye only visible
-          c.fillRect(cx + 2, headCY - 1, 3, 3);
-        } else if (row === 1) {
-          // West – left eye only visible
-          c.fillRect(cx - 5, headCY - 1, 3, 3);
-        }
-        // North (row === 3) – back of head, no eyes
-
-        // ── Body ─────────────────────────────────────────────────────────
-        c.fillStyle = '#556b2f'; // olive green shirt
-        c.fillRect(cx - 7, headCY + 9, 14, 18);
-
-        // ── Arms (opposite swing to legs) ─────────────────────────────────
-        const armSwing = (frame % 2 === 0) ? 4 : -4;
-        c.fillStyle = '#ffcc80'; // skin
-        c.fillRect(cx - 12, headCY + 10 + armSwing,  5, 12); // left arm
-        c.fillRect(cx +  7, headCY + 10 - armSwing,  5, 12); // right arm
-
-        // ── Shorts ───────────────────────────────────────────────────────
-        c.fillStyle = '#8d6e63';
-        c.fillRect(cx - 7, headCY + 27, 14, 7);
-
-        // ── Legs ─────────────────────────────────────────────────────────
-        const legSwing = (frame % 2 === 0) ? 4 : -4;
-        c.fillStyle = '#d7ccc8'; // skin
-        c.fillRect(cx - 7, headCY + 34 + legSwing,  5, 14); // left
-        c.fillRect(cx + 2, headCY + 34 - legSwing,  5, 14); // right
-
-        // ── Shoes ────────────────────────────────────────────────────────
-        c.fillStyle = '#3e2723';
-        c.fillRect(cx - 8, headCY + 48 + legSwing,  6, 4);
-        c.fillRect(cx + 2, headCY + 48 - legSwing,  6, 4);
-
-        // ── Debug stamp (direction letter + frame number) ─────────────────
-        c.fillStyle  = 'rgba(255, 255, 255, 0.35)';
-        c.font       = '7px monospace';
-        c.textAlign  = 'left';
-        c.fillText(`${label}${frame}`, ox + 2, oy + FRAME_H - 3);
-      }
-    }
-
-    return offscreen.toDataURL('image/png');
+    return ""; // Unused, we use inline procedural drawing now for better animation
   }
 }

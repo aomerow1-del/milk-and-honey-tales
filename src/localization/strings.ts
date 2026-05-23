@@ -30,6 +30,9 @@ export interface TranslationStrings {
   aravaDialogueNeedSabra: string;
   aravaDialogueThanks: string;
   macabiDialogue: string;
+  jarBroken: string;
+  oasisHeal: string;
+  holyBamba?: string;
 }
 
 export const strings: Record<'en' | 'he', TranslationStrings> = {
@@ -67,7 +70,9 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     questCompleted: '\n[Quest Completed: The Desert Journey]',
     aravaDialogueNeedSabra: 'Peace be with you. I am Arava. The desert is harsh... If you find a fresh Sabra Fruit, I will trade you 50 Shekels for it.',
     aravaDialogueThanks: 'Ah, a sweet Sabra Fruit! Here are your 50 Shekels. May your journey be safe.',
-    macabiDialogue: 'Halt! I am Macabi, guardian of the Central District. I hear the Bamba Golem is causing trouble nearby. Be ready for combat!'
+    macabiDialogue: 'Halt! I am Macabi, guardian of the Central District. I hear the Bamba Golem is causing trouble nearby. Be ready for combat!',
+    jarBroken: 'You smashed an ancient jar and found some Shekels!',
+    oasisHeal: 'You drank from the Oasis Pool. Health and Mana fully restored.'
   },
   he: {
     title: 'עלילות חלב ודבש',
@@ -103,6 +108,8 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     questCompleted: '\n[המשימה הושלמה: המסע במדבר]',
     aravaDialogueNeedSabra: 'שלום עליכם. אני ערבה. המדבר אכזר... אם תמצא פרי צבר (סברס) טרי, אתן לך 50 שקלים בתמורה.',
     aravaDialogueThanks: 'אה, פרי צבר מתוק! הנה 50 השקלים שלך. דרך צלחה במסעך.',
-    macabiDialogue: 'עצור! אני מכבי, שומר מחוז המרכז. שמעתי שגולם הבמבה עושה צרות בסביבה. היה מוכן לקרב!'
+    macabiDialogue: 'עצור! אני מכבי, שומר מחוז המרכז. שמעתי שגולם הבמבה עושה צרות בסביבה. היה מוכן לקרב!',
+    jarBroken: 'שברת כד עתיק ומצאת כמה שקלים!',
+    oasisHeal: 'שתית ממימי נווה המדבר. הבריאות והמאנה שוחזרו במלואם.'
   }
 };

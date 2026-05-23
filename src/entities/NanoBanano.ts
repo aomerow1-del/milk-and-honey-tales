@@ -18,58 +18,70 @@ export class NanoBanano {
 
     ctx.save();
 
-    // Bobbing animation based on time
-    const bounce = Math.abs(Math.sin(time * 0.005)) * 15;
+    // Smooth organic bounce
+    const bounce = Math.abs(Math.sin(time * 3)) * 10;
+    const squash = 1 + Math.sin(time * 6) * 0.05;
 
     // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    ctx.shadowBlur = 8;
     ctx.beginPath();
-    ctx.ellipse(floorCentreX, floorCentreY, 12 + (bounce * 0.2), 6 + (bounce * 0.1), 0, 0, Math.PI * 2);
+    ctx.ellipse(floorCentreX, floorCentreY, 14 + (bounce * 0.2), 7 + (bounce * 0.1), 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Pulse glow
-    const pulse = 0.5 + Math.abs(Math.sin(time * 0.003)) * 0.5;
-    ctx.shadowColor = 'rgba(255, 235, 59, 0.8)';
-    ctx.shadowBlur = 15 * pulse;
+    const pulse = 0.5 + Math.abs(Math.sin(time * 2)) * 0.5;
+    ctx.shadowColor = `rgba(255, 235, 59, ${0.4 + pulse * 0.4})`;
+    ctx.shadowBlur = 20 * pulse;
 
     const drawY = floorCentreY - 20 - bounce;
 
-    // Nano Banano Body (Banana Shape)
-    ctx.fillStyle = '#ffeb3b'; // Yellow
-    ctx.strokeStyle = '#f57f17';
-    ctx.lineWidth = 2;
+    ctx.translate(floorCentreX, drawY);
+    ctx.scale(1/squash, squash);
 
+    // Nano Banano Body (Rounded organic Banana)
+    const bodyGrad = ctx.createRadialGradient(-2, -5, 0, 0, 0, 20);
+    bodyGrad.addColorStop(0, '#fff59d'); // bright yellow highlight
+    bodyGrad.addColorStop(0.7, '#fdd835');
+    bodyGrad.addColorStop(1, '#fbc02d');
+
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
-    // Start top tip
-    ctx.moveTo(floorCentreX - 5, drawY - 15);
-    // Curve right
-    ctx.quadraticCurveTo(floorCentreX + 15, drawY, floorCentreX + 5, drawY + 20);
-    // Curve back up
-    ctx.quadraticCurveTo(floorCentreX, drawY + 10, floorCentreX - 10, drawY - 10);
-    ctx.closePath();
+    ctx.moveTo(-5, -20);
+    ctx.bezierCurveTo(15, -15, 20, 5, 5, 20);
+    ctx.bezierCurveTo(-5, 10, -15, -5, -5, -20);
     ctx.fill();
-    ctx.stroke();
 
-    // Eyes
+    // Eyes (Cute, soft)
     ctx.shadowBlur = 0; // Turn off glow for details
-    ctx.fillStyle = '#212121';
+    ctx.fillStyle = '#3e2723';
+    ctx.beginPath(); ctx.ellipse(3, -2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-3, 0, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Blush
+    ctx.fillStyle = 'rgba(255, 138, 101, 0.5)';
+    ctx.beginPath(); ctx.ellipse(6, 2, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-6, 4, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Nano Tech details (Glowing circuits)
+    ctx.fillStyle = '#18ffff'; // Cyan glow
+    ctx.shadowColor = '#18ffff';
+    ctx.shadowBlur = 5;
     ctx.beginPath();
-    ctx.arc(floorCentreX + 2, drawY - 2, 2, 0, Math.PI * 2); // Right eye
-    ctx.arc(floorCentreX - 2, drawY, 2, 0, Math.PI * 2); // Left eye
+    ctx.ellipse(3, 10, 2, 2, 0, 0, Math.PI * 2);
+    ctx.ellipse(1, 15, 1.5, 1.5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Nano Tech details
-    ctx.fillStyle = '#00e5ff'; // Cyan nano details
-    ctx.beginPath();
-    ctx.arc(floorCentreX + 3, drawY + 10, 2, 0, Math.PI * 2);
-    ctx.arc(floorCentreX + 1, drawY + 15, 1.5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.scale(squash, 1/squash);
+    ctx.translate(-floorCentreX, -drawY);
 
     // Name tag text hovering
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 10px "Outfit", sans-serif';
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = '700 11px "Outfit", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Nano Banano', floorCentreX, drawY - 25);
+    ctx.fillText('Nano Banano', floorCentreX, drawY - 30);
 
     ctx.restore();
   }
