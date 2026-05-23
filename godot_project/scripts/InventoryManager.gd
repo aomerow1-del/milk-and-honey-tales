@@ -11,3 +11,6 @@ func add_item(item_id: String, amount: int = 1) -> void:
     else:
         items[item_id] = amount
     print("Added " + str(amount) + " " + item_id + " to inventory.")
+    SaveSystem.save_game()
+
+

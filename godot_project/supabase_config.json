@@ -1,0 +1,5 @@
+{
+  "supabase_url": "",
+  "supabase_key": "",
+  "_comment": "Provide your Supabase URL and Anon API key above. If left blank, the game falls back to local file saves seamlessly."
+}

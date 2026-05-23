@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" fill="#1a1a2e"/>
+  <circle cx="64" cy="50" r="20" fill="#e6a817"/>
+  <polygon points="44,80 64,65 84,80 84,110 44,110" fill="#3a6ea5"/>
+  <text x="64" y="125" text-anchor="middle" fill="#e6a817" font-size="12" font-family="Arial">M&amp;HT</text>
+</svg>

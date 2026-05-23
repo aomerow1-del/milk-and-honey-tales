@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Godot downloaded binaries
+godot_bin/
+
+# Godot 4 cache and compiled files
+.godot/
+*.translation
