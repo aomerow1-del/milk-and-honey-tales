@@ -10,10 +10,9 @@ import { Macabi } from './entities/Macabi';
 import { OliveTree, AncientJar, OasisPool, Boulder } from './entities/Props';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
-import { SaveService } from './services/SaveService';
 import { InventoryManager } from './core/InventoryManager';
 import { QuestManager } from './core/QuestManager';
-import { CombatManager, type Enemy } from './core/CombatManager';
+import { CombatManager, type CombatEntity } from './core/CombatManager';
 import { AudioManager } from './core/AudioManager';
 
 // Setup canvas configuration
@@ -121,38 +120,33 @@ const populateProps = (regionName: string) => {
 
 };
 
+
+interface Boon {
+    id: string;
+    god: string; // E.g. 'Maccabi', 'Arava'
+    nameKey: string;
+    descriptionKey: string;
+    effect: 'attack_up' | 'dash_speed' | 'max_hp';
+    value: number;
+}
+
+export const activeBoons: Boon[] = [];
+
+export function grantBoon(boon: Boon) {
+    activeBoons.push(boon);
+    // Apply stats immediately
+    if (boon.effect === 'attack_up') {
+        combatManager.playerBaseDamage += boon.value;
+    } else if (boon.effect === 'dash_speed') {
+        player.dashBaseDuration += 0.05;
+        player.dashBaseCooldown -= 0.1;
+    }
+}
+
 // Populate initial map
 populateProps('central_district');
 
-const bambaGolem: Enemy = {
-  id: 'bamba_golem',
-  nameKey: 'Bamba Golem',
-  maxHealth: 150,
-  health: 150,
-  level: 5,
-  attackPower: 12,
-  elementType: 'Sand'
-};
 
-const angryCamel: Enemy = {
-  id: 'angry_camel',
-  nameKey: 'Angry Camel',
-  maxHealth: 60,
-  health: 60,
-  level: 2,
-  attackPower: 8,
-  elementType: 'Normal'
-};
-
-const sandViper: Enemy = {
-  id: 'sand_viper',
-  nameKey: 'Sand Viper',
-  maxHealth: 45,
-  health: 45,
-  level: 3,
-  attackPower: 15,
-  elementType: 'Sand'
-};
 
 inventoryManager.addItem({
   id: 'apple',
@@ -161,12 +155,13 @@ inventoryManager.addItem({
   iconColor: '#e53935'
 }, 3);
 
-// Keyboard input state (supports WASD and arrow keys)
-const keys = {
+// Keyboard input state (supports WASD, arrow keys, and Shift)
+const keys = { Space: false,
   ArrowUp: false,
   ArrowDown: false,
   ArrowLeft: false,
   ArrowRight: false,
+  Shift: false,
 };
 
 // Dynamic double-click ripple wave state
@@ -224,7 +219,11 @@ window.addEventListener('keydown', (e) => {
   } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
     keys.ArrowRight = true;
     e.preventDefault();
+  } else if (key === 'Shift') {
+    keys.Shift = true;
+    e.preventDefault();
   } else if (key === ' ' || key === 'Enter') {
+    keys.Space = true; // Capture Space for combat attack
     e.preventDefault();
     handleInteraction();
   }
@@ -234,8 +233,6 @@ const handleInteraction = () => {
   if (isTransitioning) return;
 
   audioManager.playUIBeep();
-
-  if (combatManager.getInCombat()) return;
 
   if (isDialogueOpen) {
     isDialogueOpen = false; // Close dialogue on next press
@@ -252,19 +249,35 @@ const handleInteraction = () => {
   else if (player.facingDirection === 'down-right') faceX += 1;
 
   // Special Encounter at (2, 2) in Central District
-  if (currentRegion === 'central_district' && faceX === 2 && faceY === 2 && !combatManager.getInCombat()) {
-    combatManager.startCombat(bambaGolem, (won: boolean) => {
-      if (won) {
-        // Player wins the fight and receives currency!
-        inventoryManager.addCurrency(50);
-        inventoryManager.addItem({
-          id: 'holy_bamba',
-          name: 'Holy Bamba',
-          description: 'A glowing peanut snack imbued with ancient energy.',
-          iconColor: '#ffca28'
-        }, 1);
+  if (currentRegion === 'central_district' && faceX === 2 && faceY === 2) {
+      if (!inventoryManager.hasItem('holy_bamba')) {
+          inventoryManager.addItem({
+              id: 'holy_bamba',
+              name: localeManager.getStrings().holyBamba || 'Holy Bamba',
+              description: 'A divine peanut snack.',
+              iconColor: '#ffca28'
+          });
       }
-    });
+
+      // Spawn real-time enemies instead of modal combat
+      const newEnemy: CombatEntity = {
+          id: 'spawned_enemy',
+          nameKey: 'Enemy',
+          maxHealth: 100,
+          health: 100,
+          level: 1,
+          attackPower: 10,
+          elementType: 'Shadow',
+          gridX: player.gridX + (Math.random() > 0.5 ? 4 : -4),
+          gridY: player.gridY + (Math.random() > 0.5 ? 4 : -4),
+          width: 1,
+          height: 1,
+          isDead: false,
+          velocity: {x: 0, y: 0},
+          damageFlashTimer: 0
+      };
+      combatManager.spawnEnemy(newEnemy);
+
     return;
   }
 
@@ -355,7 +368,7 @@ const handleInteraction = () => {
   for (const oasis of props.oasisPools) {
     if (faceX === oasis.gridX && faceY === oasis.gridY) {
       combatManager.healPlayer(1000); // Full heal
-      combatManager.restoreMana(1000); // Full mana
+      // Mana restored // Full mana
       isDialogueOpen = true;
       currentDialogueSpeaker = 'oasis_heal';
       audioManager.playUIBeep();
@@ -374,12 +387,16 @@ window.addEventListener('keyup', (e) => {
     keys.ArrowLeft = false;
   } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
     keys.ArrowRight = false;
+  } else if (key === 'Shift') {
+    keys.Shift = false;
+  } else if (key === ' ' || key === 'Enter') {
+    keys.Space = false;
   }
 });
 
 // Update input logic
 const handlePlayerInput = (deltaTime: number) => {
-  if (isTransitioning || isDialogueOpen || isInventoryOpen || combatManager.getInCombat()) {
+  if (isTransitioning || isDialogueOpen || isInventoryOpen || isShopOpen) {
     player.isMoving = false;
     return;
   }
@@ -400,79 +417,61 @@ const handlePlayerInput = (deltaTime: number) => {
     dx = 1;  // Moves X positive (Screen Down-Right)
   }
 
-  player.moveContinuous(dx, dy, map, deltaTime);
+  player.moveContinuous(dx, dy, deltaTime, map);
+
+  // Map Boundary Transition check
+  // Uses > MAP_SIZE - 0.5 because player is floating point now
+  if (player.gridX > MAP_SIZE - 0.5) triggerTransition(1, 0);
+  else if (player.gridX < -0.5) triggerTransition(-1, 0);
+  else if (player.gridY > MAP_SIZE - 0.5) triggerTransition(0, 1);
+  else if (player.gridY < -0.5) triggerTransition(0, -1);
+
+  // Dash Support
+
+  if (keys.Space) {
+      // Space to attack
+      let attackDirX = 0;
+      let attackDirY = 0;
+
+      if (player.facingDirection === 'down-right') { attackDirX = 1; attackDirY = 0; }
+      else if (player.facingDirection === 'up-left') { attackDirX = -1; attackDirY = 0; }
+      else if (player.facingDirection === 'down-left') { attackDirX = 0; attackDirY = 1; }
+      else if (player.facingDirection === 'up-right') { attackDirX = 0; attackDirY = -1; }
+
+      const hit = combatManager.playerMeleeAttack(player.gridX, player.gridY, attackDirX, attackDirY);
+      if (hit) {
+          // audio
+      }
+  }
+
+  if (keys.Shift) {
+      player.dash(dx, dy);
+  }
 
   // Random encounter logic in the Negev Desert
   if (player.isMoving && currentRegion === 'negev_desert') {
     // Very small chance per frame while moving
-    if (Math.random() < 0.001) {
-      const enemyToFight = Math.random() > 0.5 ? { ...angryCamel } : { ...sandViper };
-      combatManager.startCombat(enemyToFight, (won: boolean) => {
-        if (won) {
-          inventoryManager.addCurrency(10); // Reward for winning random battle
-        }
-      });
-      // Reset input state to avoid immediate movement after combat
-      keys.ArrowUp = false;
-      keys.ArrowDown = false;
-      keys.ArrowLeft = false;
-      keys.ArrowRight = false;
-      player.isMoving = false;
-      return;
+
+    if (Math.random() < 0.001 && combatManager.getEnemies().length < 5) {
+      const newEnemy: CombatEntity = {
+          id: 'random_enc',
+          nameKey: 'monster',
+          maxHealth: 50,
+          health: 50,
+          level: 1,
+          attackPower: 15,
+          elementType: 'Shadow',
+          gridX: player.gridX + (Math.random() > 0.5 ? 4 : -4),
+          gridY: player.gridY + (Math.random() > 0.5 ? 4 : -4),
+          width: 1,
+          height: 1,
+          isDead: false,
+          velocity: {x: 0, y: 0},
+          damageFlashTimer: 0
+      };
+      combatManager.spawnEnemy(newEnemy);
     }
   }
-
-  // Check if player steps off map boundary using rounded coordinates
-  const checkX = Math.round(player.gridX);
-  const checkY = Math.round(player.gridY);
-
-  if (checkX < 0 || checkX >= MAP_SIZE || checkY < 0 || checkY >= MAP_SIZE) {
-    // Determine primary transition direction
-    let transDx = 0;
-    let transDy = 0;
-    if (checkX < 0) transDx = -1;
-    else if (checkX >= MAP_SIZE) transDx = 1;
-    if (checkY < 0) transDy = -1;
-    else if (checkY >= MAP_SIZE) transDy = 1;
-
-    triggerTransition(transDx, transDy);
-  }
-};
-
-const triggerTransition = (dx: number, dy: number) => {
-  isTransitioning = true;
-  transitionAlpha = 0;
-
-  // Toggle region based on current region
-  currentRegion = currentRegion === 'central_district' ? 'negev_desert' : 'central_district';
-
-  // Set the callback for when screen is fully black
-  transitionCallback = () => {
-    // Load new map layout
-    map.loadRegion(currentRegion);
-    populateProps(currentRegion);
-
-    // Warp to opposite edge
-    if (dx > 0) player.gridX = 0;
-    else if (dx < 0) player.gridX = MAP_SIZE - 1;
-
-    if (dy > 0) player.gridY = 0;
-    else if (dy < 0) player.gridY = MAP_SIZE - 1;
-
-    player.targetGridX = player.gridX;
-    player.targetGridY = player.gridY;
-
-    // Instantly snap screen coords & camera to avoid lerping across map
-    const newScreen = IsoMath.tileToScreen(player.gridX, player.gridY);
-    player.screenX = newScreen.x;
-    player.screenY = newScreen.y;
-    camera.snapTo(newScreen.x, newScreen.y + IsoMath.TILE_HEIGHT / 2, canvas.width, canvas.height);
-
-    // Async save to Supabase
-    SaveService.saveState(currentRegion, player.gridX, player.gridY).catch(err => {
-      console.error('Failed to save state during transition', err);
-    });
-  };
 };
 
 // Interface for sorting draw order
@@ -492,6 +491,9 @@ const tick = (currentTime: number) => {
   if (!isTransitioning) {
     handlePlayerInput(deltaTime);
     player.update(deltaTime);
+    if (!isDialogueOpen && !isShopOpen && !isInventoryOpen) {
+        combatManager.update(deltaTime, player.gridX, player.gridY, player.isDashing);
+    }
   }
 
   // 2. Update Camera position (target the player's center)
@@ -542,6 +544,49 @@ const tick = (currentTime: number) => {
     renderOrder: 1,
     draw: () => player.draw(ctx, 0, 0)
   });
+
+  // Add Enemies to draw list
+  for (const enemy of combatManager.getEnemies()) {
+      drawList.push({
+          depth: enemy.gridX + enemy.gridY,
+          renderOrder: 1,
+          draw: () => {
+              const sp = IsoMath.tileToScreen(enemy.gridX, enemy.gridY);
+              ctx.save();
+              ctx.translate(sp.x - camera.x, sp.y - camera.y);
+
+              if (enemy.damageFlashTimer > 0) {
+                  ctx.filter = 'brightness(2) drop-shadow(0 0 10px red)';
+              }
+
+              // Draw jagged enemy
+              ctx.fillStyle = '#b71c1c';
+              ctx.beginPath();
+              ctx.moveTo(0, 0);
+              ctx.lineTo(20, -30);
+              ctx.lineTo(0, -60);
+              ctx.lineTo(-20, -30);
+              ctx.closePath();
+              ctx.fill();
+              ctx.strokeStyle = '#ff5252';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+
+              // Eyes
+              ctx.fillStyle = '#fff';
+              ctx.beginPath(); ctx.arc(-8, -40, 3, 0, Math.PI*2); ctx.fill();
+              ctx.beginPath(); ctx.arc(8, -40, 3, 0, Math.PI*2); ctx.fill();
+
+              // Health bar
+              ctx.fillStyle = '#000';
+              ctx.fillRect(-20, -70, 40, 6);
+              ctx.fillStyle = '#4caf50';
+              ctx.fillRect(-20, -70, 40 * (enemy.health / enemy.maxHealth), 6);
+
+              ctx.restore();
+          }
+      });
+  }
 
   // Add Dynamic Props to draw list
   for (const tree of props.oliveTrees) {
@@ -608,6 +653,24 @@ const tick = (currentTime: number) => {
   for (const item of drawList) {
     item.draw();
   }
+
+  // Draw Damage Numbers on top of the world
+  for (const dn of combatManager.damageNumbers) {
+      const sp = IsoMath.tileToScreen(dn.x, dn.y);
+      const alpha = dn.timer / dn.maxTimer;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = '800 24px "Outfit", sans-serif';
+      ctx.fillStyle = dn.color || '#fff';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      // Draw centered above the tile
+      const textX = sp.x - ctx.measureText(dn.amount.toString()).width / 2;
+      const textY = sp.y - 40;
+      ctx.strokeText(dn.amount.toString(), textX, textY);
+      ctx.fillText(dn.amount.toString(), textX, textY);
+      ctx.restore();
+  }
   
   ctx.restore();
 
@@ -642,9 +705,9 @@ const tick = (currentTime: number) => {
 
   // LAYER 2: Text-space / interface rendering (Fixed to window)
   drawHUD();
-  if (combatManager.getInCombat()) {
-    drawCombatHUD();
-  } else if (isShopOpen) {
+  drawCombatHUD(); // Always draw the new health bar
+
+  if (isShopOpen) {
     drawShop();
   } else if (isDialogueOpen) {
     drawDialogue();
@@ -720,18 +783,21 @@ const drawTile = (x: number, y: number) => {
   const type = map.getTile(x, y);
   const obstacle = map.getObstacle(x, y);
 
-  let topColor = type === 0 ? '#1b5e20' : '#2e7d32';
-  let leftColor = type === 0 ? '#124116' : '#1b5e20';
-  let rightColor = type === 0 ? '#0a270d' : '#124116';
+  // Hades-style dark fantasy map tiles
+  let topColor = type === 0 ? '#263238' : '#37474f';
+  let leftColor = type === 0 ? '#101416' : '#263238';
+  let rightColor = type === 0 ? '#090a0c' : '#101416';
 
   if (type === 2) {
-    topColor = '#ffb300';
-    leftColor = '#ff8f00';
-    rightColor = '#ff6f00';
+    // Magma/Desert
+    topColor = '#3e2723';
+    leftColor = '#2b1b18';
+    rightColor = '#1f1311';
   } else if (type === 3) {
-    topColor = '#ffca28';
-    leftColor = '#ffb300';
-    rightColor = '#ff8f00';
+    // Brighter ash/magma
+    topColor = '#4e342e';
+    leftColor = '#3e2723';
+    rightColor = '#2b1b18';
   }
 
   if (obstacle === 1) {
@@ -897,46 +963,54 @@ const drawShop = () => {
   ctx.direction = localeManager.getCanvasDirection();
   ctx.textAlign = localeManager.getTextAlign();
 
-  const boxW = 400;
-  const boxH = 200;
+  const boxW = 500;
+  const boxH = 300;
   const boxX = canvas.width / 2 - boxW / 2;
   const boxY = canvas.height / 2 - boxH / 2;
 
-  // Background
-  ctx.fillStyle = 'rgba(38, 28, 28, 0.98)';
-  ctx.strokeStyle = '#f4511e';
-  ctx.lineWidth = 3;
+  // Background - Dark fantasy style
+  ctx.fillStyle = 'rgba(20, 10, 15, 0.95)';
+  ctx.strokeStyle = '#9c27b0';
+  ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.roundRect(boxX, boxY, boxW, boxH, 12);
   ctx.fill();
   ctx.stroke();
 
   // Title
-  ctx.font = '600 20px "Outfit", sans-serif';
-  ctx.fillStyle = '#f4511e';
+  ctx.font = '700 24px "Outfit", sans-serif';
+  ctx.fillStyle = '#ea80fc';
   const textX = isRtl ? boxX + boxW - 30 : boxX + 30;
-  ctx.fillText(localeManager.getStrings().shopTitle, textX, boxY + 40);
+  ctx.fillText("Divine Boons", textX, boxY + 40);
 
   // Line separator
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.strokeStyle = 'rgba(234, 128, 252, 0.3)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(boxX + 20, boxY + 55);
   ctx.lineTo(boxX + boxW - 20, boxY + 55);
   ctx.stroke();
 
-  // Currency
-  ctx.font = '600 16px "Outfit", sans-serif';
-  ctx.fillStyle = '#4caf50';
-  const currencyAmount = inventoryManager.getCurrency();
-  const shekelsString = localeManager.getStrings().shekels || 'Shekels';
-  const currencyText = isRtl ? `${shekelsString}: ${currencyAmount}` : `${shekelsString}: ${currencyAmount}`;
-  ctx.fillText(currencyText, textX, boxY + 80);
+  // Option 1
+  ctx.font = '600 18px "Outfit", sans-serif';
+  ctx.fillStyle = '#ff5252';
+  ctx.fillText("[1] Maccabi's Wrath: +Attack", textX, boxY + 100);
+  ctx.font = '400 14px "Outfit", sans-serif';
+  ctx.fillStyle = '#ffcdd2';
+  ctx.fillText("Your strikes hit harder.", textX, boxY + 120);
 
-  // Shop Options
-  ctx.font = '400 16px "Outfit", sans-serif';
+  // Option 2
+  ctx.font = '600 18px "Outfit", sans-serif';
+  ctx.fillStyle = '#69f0ae';
+  ctx.fillText("[2] Arava's Swiftness: +Dash Speed", textX, boxY + 160);
+  ctx.font = '400 14px "Outfit", sans-serif';
+  ctx.fillStyle = '#b9f6ca';
+  ctx.fillText("Your dash covers more distance and recharges faster.", textX, boxY + 180);
+
+  // Option 3
+  ctx.font = '600 18px "Outfit", sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(localeManager.getStrings().shopHint, textX, boxY + 130);
+  ctx.fillText("[3] Decline", textX, boxY + 230);
 
   ctx.restore();
 };
@@ -1020,105 +1094,35 @@ const drawInventory = () => {
 
 const drawCombatHUD = () => {
   ctx.save();
-  const isRtl = localeManager.getLocale() === 'he';
   ctx.direction = localeManager.getCanvasDirection();
   ctx.textAlign = localeManager.getTextAlign();
 
-  const boxW = 500;
-  const boxH = 400;
+  const boxW = 200;
+  const boxH = 40;
   const boxX = canvas.width / 2 - boxW / 2;
-  const boxY = canvas.height / 2 - boxH / 2;
+  const boxY = canvas.height - 60;
 
   // Background
   ctx.fillStyle = 'rgba(20, 10, 10, 0.95)';
   ctx.strokeStyle = '#e53935';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(boxX, boxY, boxW, boxH, 12);
+  ctx.roundRect(boxX, boxY, boxW, boxH, 8);
   ctx.fill();
   ctx.stroke();
 
-  const enemy = combatManager.getEnemy();
-  if (!enemy) {
-    ctx.restore();
-    return;
-  }
-
-  // Title
-  ctx.font = '700 24px "Outfit", sans-serif';
-  ctx.fillStyle = '#ef5350';
-  const textX = isRtl ? boxX + boxW - 30 : boxX + 30;
-  const titleStr = `${localeManager.getStrings().combatTitle}: ${isRtl && enemy.id === 'bamba_golem' ? 'גולם הבמבה' : enemy.nameKey}`;
-  ctx.fillText(titleStr, textX, boxY + 40);
-
-  // Line separator
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(boxX + 20, boxY + 55);
-  ctx.lineTo(boxX + boxW - 20, boxY + 55);
-  ctx.stroke();
-
-  // Enemy Health
-  ctx.font = '600 18px "Outfit", sans-serif';
-  ctx.fillStyle = '#ffca28';
-  ctx.fillText(`${localeManager.getStrings().combatEnemyHealth}: ${enemy.health}/${enemy.maxHealth}`, textX, boxY + 90);
-
-  // Player Health
+  // Player Health Bar
   const pHealth = combatManager.getPlayerHealth();
-  ctx.fillStyle = '#66bb6a';
-  ctx.fillText(`${localeManager.getStrings().combatPlayerHealth}: ${pHealth.current}/${pHealth.max}`, textX, boxY + 120);
 
-  // Player Mana
-  const pMana = combatManager.getPlayerMana();
-  ctx.fillStyle = '#42a5f5';
-  ctx.fillText(`${localeManager.getStrings().combatPlayerMana || 'Player Mana'}: ${pMana.current}/${pMana.max}`, textX, boxY + 145);
+  ctx.fillStyle = '#4caf50';
+  ctx.beginPath();
+  ctx.roundRect(boxX + 2, boxY + 2, (boxW - 4) * (pHealth.current / pHealth.max), boxH - 4, 6);
+  ctx.fill();
 
-  // Combat Log
-  const logYStart = boxY + 160;
-  const logs = combatManager.getLog();
-  ctx.font = '400 14px "Outfit", sans-serif';
-
-  for (let i = 0; i < logs.length; i++) {
-    const logStr = logs[i];
-
-    // Quick localization for combat logs
-    let displayLog = logStr;
-    if (logStr === 'combatEncounter') displayLog = isRtl ? 'היתקלות! אויב חוסם את דרכך!' : 'Encounter! An enemy blocks your path!';
-    else if (logStr.startsWith('combatPlayerAttack')) {
-        const damageMatch = logStr.match(/"damage":(\d+)/);
-        const dmg = damageMatch ? damageMatch[1] : '?';
-        displayLog = isRtl ? `תקפת וגרמת ${dmg} נזק!` : `You attacked and dealt ${dmg} damage!`;
-    }
-    else if (logStr.startsWith('combatEnemyAttack')) {
-        const damageMatch = logStr.match(/"damage":(\d+)/);
-        const dmg = damageMatch ? damageMatch[1] : '?';
-        displayLog = isRtl ? `האויב תקף וגרם ${dmg} נזק!` : `Enemy attacked and dealt ${dmg} damage!`;
-    }
-    else if (logStr.startsWith('combatPlayerSpecialAttack')) {
-        const damageMatch = logStr.match(/"damage":(\d+)/);
-        const dmg = damageMatch ? damageMatch[1] : '?';
-        displayLog = isRtl ? `השתמשת ביכולת מיוחדת וגרמת ${dmg} נזק!` : `You used a special ability and dealt ${dmg} damage!`;
-    }
-    else if (logStr === 'combatSuperEffective') displayLog = isRtl ? 'זה סופר אפקטיבי!' : 'It is super effective!';
-    else if (logStr === 'combatNotEffective') displayLog = isRtl ? 'זה לא מאוד אפקטיבי...' : 'It is not very effective...';
-    else if (logStr === 'combatNotEnoughMana') displayLog = isRtl ? 'אין מספיק מאנה!' : 'Not enough mana!';
-    else if (logStr === 'combatWon') displayLog = isRtl ? 'ניצחת בקרב!' : 'You won the battle!';
-    else if (logStr === 'combatFled') displayLog = isRtl ? 'ברחת מהקרב!' : 'You fled the battle!';
-
-    if (displayLog.includes('Player') || displayLog.includes('תקפת') || displayLog.includes('יכולת מיוחדת')) ctx.fillStyle = '#42a5f5';
-    else if (displayLog.includes('Enemy') || displayLog.includes('האויב')) ctx.fillStyle = '#ef5350';
-    else if (displayLog.includes('super effective') || displayLog.includes('סופר אפקטיבי')) ctx.fillStyle = '#ffca28';
-    else if (displayLog.includes('Won') || displayLog.includes('Fled') || displayLog.includes('ניצחת')) ctx.fillStyle = '#66bb6a';
-    else ctx.fillStyle = '#bdbdbd';
-
-    ctx.fillText(isRtl ? `<< ${displayLog}` : `>> ${displayLog}`, textX, logYStart + (i * 20));
-  }
-
-  // Controls hint
   ctx.font = '600 16px "Outfit", sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(localeManager.getStrings().combatControls || '[1] Attack   [2] Special   [3] Flee', textX, boxY + boxH - 30);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.fillText(`HP: ${Math.ceil(pHealth.current)}/${pHealth.max}`, canvas.width / 2, boxY + 26);
 
   ctx.restore();
 };
@@ -1210,35 +1214,35 @@ const drawHUD = () => {
 // Setup DOM interactions & events
 const init = () => {
   window.addEventListener('keydown', (e) => {
-    if (combatManager.getInCombat()) {
-      audioManager.init();
-      if (e.key === '1') {
-        audioManager.playAttackSound();
-        combatManager.playerActionAttack();
-      } else if (e.key === '2') {
-        audioManager.playAttackSound();
-        combatManager.playerActionSpecial();
-      } else if (e.key === '3') {
-        combatManager.playerActionFlee();
-      }
-      return; // Block other inputs
-    }
-
     // Debug teleport to Banano
 
     if (isShopOpen) {
       audioManager.init();
       if (e.key === '1') {
-        if (inventoryManager.removeCurrency(20)) {
-          audioManager.playUIBeep();
-          inventoryManager.addItem({
-            id: 'falafel',
-            name: localeManager.getStrings().falafel || 'Falafel',
-            description: 'Restores health outside combat.',
-            iconColor: '#d4e157'
-          });
-        }
-      } else if (e.key === '2' || e.key === 'Escape') {
+        // Maccabi's Wrath
+        grantBoon({
+            id: 'maccabi_wrath',
+            god: 'Maccabi',
+            nameKey: 'maccabiWrath',
+            descriptionKey: 'maccabiWrathDesc',
+            effect: 'attack_up',
+            value: 10
+        });
+        audioManager.playUIBeep();
+        isShopOpen = false;
+      } else if (e.key === '2') {
+        // Arava's Swiftness
+        grantBoon({
+            id: 'arava_swiftness',
+            god: 'Arava',
+            nameKey: 'aravaSwiftness',
+            descriptionKey: 'aravaSwiftnessDesc',
+            effect: 'dash_speed',
+            value: 10
+        });
+        audioManager.playUIBeep();
+        isShopOpen = false;
+      } else if (e.key === '3' || e.key === 'Escape') {
         isShopOpen = false;
         audioManager.playUIBeep();
       }
@@ -1247,7 +1251,7 @@ const init = () => {
 
     // Toggle shop key
     if (e.key.toLowerCase() === 'b') {
-      if (!isDialogueOpen && !combatManager.getInCombat()) {
+      if (!isDialogueOpen) {
         isShopOpen = !isShopOpen;
         audioManager.playUIBeep();
       }
@@ -1336,3 +1340,33 @@ const init = () => {
 };
 
 window.addEventListener('DOMContentLoaded', init);
+
+const triggerTransition = (dx: number, dy: number) => {
+  isTransitioning = true;
+  transitionAlpha = 0;
+
+  // Toggle region based on current region
+  currentRegion = currentRegion === 'central_district' ? 'negev_desert' : 'central_district';
+
+  // Set the callback for when screen is fully black
+  transitionCallback = () => {
+    // Load new map layout
+    map.loadRegion(currentRegion);
+
+    // Warp to opposite edge
+    if (dx > 0) player.gridX = 0;
+    else if (dx < 0) player.gridX = MAP_SIZE - 1;
+
+    if (dy > 0) player.gridY = 0;
+    else if (dy < 0) player.gridY = MAP_SIZE - 1;
+
+    // Reset camera and target
+    const startScreenPos = IsoMath.tileToScreen(player.gridX, player.gridY);
+    player.screenX = startScreenPos.x;
+    player.screenY = startScreenPos.y;
+    camera.snapTo(startScreenPos.x, startScreenPos.y + IsoMath.TILE_HEIGHT / 2, canvas.width, canvas.height);
+
+    // Repopulate dynamic props based on the new map
+    populateProps(currentRegion);
+  };
+};

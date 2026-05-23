@@ -32,6 +32,7 @@ export interface TranslationStrings {
   macabiDialogue: string;
   jarBroken: string;
   oasisHeal: string;
+  holyBamba?: string;
 }
 
 export const strings: Record<'en' | 'he', TranslationStrings> = {

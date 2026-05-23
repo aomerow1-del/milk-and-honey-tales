@@ -17,33 +17,28 @@ export class NPC {
     this.sprite = new Image();
     this.sprite.onload = () => { this.spriteLoaded = true; };
     this.sprite.onerror = () => {
-      const dataUrl = this.generatePlaceholderSprite();
-      const fallback = new Image();
-      fallback.onload = () => { this.sprite = fallback; this.spriteLoaded = true; };
-      fallback.src = dataUrl;
+      this.spriteLoaded = false;
     };
     this.sprite.src = '/assets/npc_spritesheet.png';
   }
 
   public draw(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number, time: number): void {
     const screenPos = IsoMath.tileToScreen(this.gridX, this.gridY);
-
-    // Position at the bottom/center of the tile diamond
     const drawX = screenPos.x + cameraX;
     const drawY = screenPos.y + cameraY + IsoMath.TILE_HEIGHT / 2;
 
-    const animOffset = Math.sin(time * 2) * 1.5; // gentle breathing
+    const animOffset = Math.sin(time * 3) * 2;
 
     ctx.save();
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 8;
+    // Sharp Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.beginPath();
-    ctx.ellipse(drawX, drawY, 14, 7, 0, 0, Math.PI * 2);
+    ctx.moveTo(drawX - 15, drawY);
+    ctx.lineTo(drawX, drawY + 8);
+    ctx.lineTo(drawX + 15, drawY);
+    ctx.lineTo(drawX, drawY - 8);
     ctx.fill();
-    ctx.shadowBlur = 0;
 
     if (this.spriteLoaded) {
       const destX = drawX - FRAME_W / 2;
@@ -51,47 +46,64 @@ export class NPC {
 
       ctx.drawImage(
         this.sprite,
-        0, 0, // Only one frame for now
+        0, 0,
         FRAME_W, FRAME_H,
         destX, destY,
         FRAME_W, FRAME_H
       );
     } else {
-      // Body (Robe, organic)
-      const robeGrad = ctx.createRadialGradient(drawX, drawY - 12, 0, drawX, drawY - 12, 18);
-      robeGrad.addColorStop(0, '#9575cd'); // lighter purple
-      robeGrad.addColorStop(1, '#512da8');
+      // Celestial/Underworld God figure (Tall, angular, glowing)
+      const isMaccabi = this.gridX === 2; // Rough assumption based on main.ts
 
-      ctx.fillStyle = robeGrad;
+      ctx.translate(drawX, drawY - 15 + animOffset);
+
+      // Aura
+      ctx.shadowColor = isMaccabi ? '#ff1744' : '#00e5ff'; // Red for wrath, cyan for swiftness
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = isMaccabi ? 'rgba(255, 23, 68, 0.2)' : 'rgba(0, 229, 255, 0.2)';
       ctx.beginPath();
-      ctx.ellipse(drawX, drawY - 12, 11, 14, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, -15, 20, 30, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Head
-      ctx.fillStyle = '#ffb74d';
+      // Cloak
+      ctx.fillStyle = '#1a1a1a';
+      ctx.strokeStyle = isMaccabi ? '#d50000' : '#00b0ff';
+      ctx.lineWidth = 1.5;
+
       ctx.beginPath();
-      ctx.ellipse(drawX, drawY - 26 + animOffset, 9, 8, 0, 0, Math.PI * 2);
+      ctx.moveTo(0, -35); // hood top
+      ctx.lineTo(15, -10); // shoulder right
+      ctx.lineTo(20, 15);  // cloak bottom right
+      ctx.lineTo(0, 10);   // cloak bottom center
+      ctx.lineTo(-20, 15); // cloak bottom left
+      ctx.lineTo(-15, -10); // shoulder left
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Glowing face/mask
+      ctx.fillStyle = '#fff';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(0, -25);
+      ctx.lineTo(6, -15);
+      ctx.lineTo(0, -10);
+      ctx.lineTo(-6, -15);
+      ctx.closePath();
       ctx.fill();
 
-      // Eyes (soft)
-      ctx.fillStyle = '#3e2723';
-      ctx.beginPath(); ctx.ellipse(drawX - 3, drawY - 26 + animOffset, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(drawX + 3, drawY - 26 + animOffset, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
-
-      // Beard / Mustache
-      ctx.fillStyle = '#bdbdbd'; // grey beard
+      // Floating weapon/symbol
+      const floatY = Math.sin(time * 5) * 5;
+      ctx.strokeStyle = '#ffeb3b'; // gold
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(drawX, drawY - 20 + animOffset, 6, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(25, -20 + floatY);
+      ctx.lineTo(25, 0 + floatY);
+      ctx.moveTo(15, -10 + floatY);
+      ctx.lineTo(35, -10 + floatY);
+      ctx.stroke();
     }
 
     ctx.restore();
-  }
-
-  private generatePlaceholderSprite(): string {
-    const offscreen = document.createElement('canvas');
-    offscreen.width = FRAME_W;
-    offscreen.height = FRAME_H;
-    return offscreen.toDataURL('image/png');
   }
 }

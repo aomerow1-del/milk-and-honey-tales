@@ -20,59 +20,49 @@ export class OliveTree extends Prop {
 
     ctx.save();
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 10;
+    // Sharp shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.beginPath();
-    ctx.ellipse(drawX, drawY, 20, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0; // reset
-
-    // Trunk
-    const trunkGrad = ctx.createLinearGradient(drawX - 5, drawY, drawX + 5, drawY);
-    trunkGrad.addColorStop(0, '#5D4037');
-    trunkGrad.addColorStop(1, '#3E2723');
-    ctx.fillStyle = trunkGrad;
-    ctx.beginPath();
-    ctx.moveTo(drawX - 4, drawY);
-    ctx.lineTo(drawX + 4, drawY);
-    ctx.quadraticCurveTo(drawX + 2 + windSwing * 0.2, drawY - 20, drawX + windSwing, drawY - 40);
-    ctx.lineTo(drawX - 2 + windSwing, drawY - 40);
-    ctx.quadraticCurveTo(drawX - 2 + windSwing * 0.2, drawY - 20, drawX - 4, drawY);
+    ctx.moveTo(drawX - 25, drawY);
+    ctx.lineTo(drawX, drawY + 10);
+    ctx.lineTo(drawX + 25, drawY);
+    ctx.lineTo(drawX, drawY - 10);
     ctx.fill();
 
-    // Leaves / Canopy
-    const canopyGrad = ctx.createRadialGradient(drawX + windSwing - 5, drawY - 50, 5, drawX + windSwing, drawY - 45, 30);
-    canopyGrad.addColorStop(0, '#81C784');
-    canopyGrad.addColorStop(0.7, '#388E3C');
-    canopyGrad.addColorStop(1, '#1B5E20');
-
-    ctx.fillStyle = canopyGrad;
+    // Trunk (jagged)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.strokeStyle = '#d32f2f'; // glowing red edge
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.ellipse(drawX + windSwing, drawY - 50, 25, 20 + Math.sin(time + this.gridY) * 2, 0, 0, Math.PI * 2);
+    ctx.moveTo(drawX - 5, drawY);
+    ctx.lineTo(drawX + 5, drawY);
+    ctx.lineTo(drawX + 3 + windSwing, drawY - 20);
+    ctx.lineTo(drawX + 8 + windSwing, drawY - 30);
+    ctx.lineTo(drawX + windSwing, drawY - 45);
+    ctx.lineTo(drawX - 3 + windSwing, drawY - 25);
+    ctx.lineTo(drawX - 8 + windSwing, drawY - 15);
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
+
+    // Leaves / Canopy (Sharp, ethereal fire/blood)
+    ctx.fillStyle = 'rgba(211, 47, 47, 0.8)'; // deep red
+    ctx.shadowColor = '#ff5252';
+    ctx.shadowBlur = 15;
 
     ctx.beginPath();
-    ctx.ellipse(drawX + windSwing - 15, drawY - 40, 20, 15, Math.PI/6, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.ellipse(drawX + windSwing + 15, drawY - 45, 18, 15, -Math.PI/6, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Olives
-    ctx.fillStyle = '#111111';
-    ctx.beginPath();
-    ctx.arc(drawX + windSwing - 10, drawY - 45, 2, 0, Math.PI * 2);
+    ctx.moveTo(drawX + windSwing, drawY - 55);
+    ctx.lineTo(drawX + windSwing + 25, drawY - 35);
+    ctx.lineTo(drawX + windSwing + 5, drawY - 30);
+    ctx.lineTo(drawX + windSwing - 20, drawY - 40);
+    ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
-    ctx.arc(drawX + windSwing + 5, drawY - 55, 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(drawX + windSwing + 12, drawY - 35, 2, 0, Math.PI * 2);
+    ctx.moveTo(drawX + windSwing - 15, drawY - 45);
+    ctx.lineTo(drawX + windSwing + 10, drawY - 25);
+    ctx.lineTo(drawX + windSwing - 30, drawY - 25);
+    ctx.closePath();
     ctx.fill();
 
     ctx.restore();
@@ -87,75 +77,67 @@ export class AncientJar extends Prop {
     const drawX = screenPos.x + cameraX;
     const drawY = screenPos.y + cameraY + IsoMath.TILE_HEIGHT / 2;
 
-    // Optional magic glow/bobbing
-    const bounce = Math.sin(time * 2 + this.gridX) * 2;
+    const bounce = Math.sin(time * 3 + this.gridX) * 2;
 
     ctx.save();
 
     if (this.broken) {
-      // Broken shards
-      ctx.fillStyle = '#8D6E63';
+      // Broken jagged shards
+      ctx.fillStyle = '#2c2c2c';
+      ctx.strokeStyle = '#ff9800'; // glowing ember edges
+      ctx.lineWidth = 1;
+
       ctx.beginPath();
       ctx.moveTo(drawX - 10, drawY);
-      ctx.lineTo(drawX - 5, drawY - 5);
-      ctx.lineTo(drawX, drawY);
-      ctx.fill();
+      ctx.lineTo(drawX - 15, drawY - 8);
+      ctx.lineTo(drawX - 5, drawY - 4);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(drawX + 10, drawY + 2);
+      ctx.moveTo(drawX + 8, drawY + 2);
+      ctx.lineTo(drawX + 15, drawY - 6);
       ctx.lineTo(drawX + 4, drawY - 2);
-      ctx.lineTo(drawX + 12, drawY - 4);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.moveTo(drawX - 2, drawY + 3);
-      ctx.lineTo(drawX + 3, drawY + 1);
-      ctx.lineTo(drawX, drawY - 3);
-      ctx.fill();
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
     } else {
-      // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-      ctx.shadowBlur = 8;
+      // Sharp Shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
       ctx.beginPath();
-      ctx.ellipse(drawX, drawY, 12, 6, 0, 0, Math.PI * 2);
+      ctx.moveTo(drawX - 15, drawY);
+      ctx.lineTo(drawX, drawY + 8);
+      ctx.lineTo(drawX + 15, drawY);
+      ctx.lineTo(drawX, drawY - 8);
       ctx.fill();
-      ctx.shadowBlur = 0;
 
-      const drawJarY = drawY - bounce; // apply bounce to the jar body
+      const drawJarY = drawY - bounce;
 
-      // Jar Body
-      const jarGrad = ctx.createLinearGradient(drawX - 10, drawJarY, drawX + 10, drawJarY);
-      jarGrad.addColorStop(0, '#795548');
-      jarGrad.addColorStop(0.8, '#A1887F');
-      jarGrad.addColorStop(1, '#5D4037');
+      // Jar Body (angular)
+      ctx.fillStyle = '#1c1c1c';
+      ctx.strokeStyle = '#ff9800'; // glowing orange edge
+      ctx.lineWidth = 1.5;
 
-      ctx.fillStyle = jarGrad;
       ctx.beginPath();
       ctx.moveTo(drawX - 6, drawJarY);
-      ctx.bezierCurveTo(drawX - 16, drawJarY - 5, drawX - 14, drawJarY - 20, drawX - 4, drawJarY - 22);
-      ctx.lineTo(drawX + 4, drawJarY - 22);
-      ctx.bezierCurveTo(drawX + 14, drawJarY - 20, drawX + 16, drawJarY - 5, drawX + 6, drawJarY);
+      ctx.lineTo(drawX - 14, drawJarY - 10);
+      ctx.lineTo(drawX - 10, drawJarY - 22);
+      ctx.lineTo(drawX - 4, drawJarY - 26);
+      ctx.lineTo(drawX + 4, drawJarY - 26);
+      ctx.lineTo(drawX + 10, drawJarY - 22);
+      ctx.lineTo(drawX + 14, drawJarY - 10);
+      ctx.lineTo(drawX + 6, drawJarY);
+      ctx.closePath();
       ctx.fill();
-
-      // Jar Neck/Opening
-      ctx.fillStyle = '#3E2723';
-      ctx.beginPath();
-      ctx.ellipse(drawX, drawJarY - 22, 5, 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Jar Rim
-      ctx.strokeStyle = '#8D6E63';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.ellipse(drawX, drawJarY - 22, 5, 2, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Decorative banding
-      ctx.strokeStyle = '#5D4037';
-      ctx.lineWidth = 1;
+      // Glowing rune
+      ctx.strokeStyle = '#ffeb3b';
+      ctx.shadowColor = '#ffeb3b';
+      ctx.shadowBlur = 10;
       ctx.beginPath();
-      ctx.ellipse(drawX, drawJarY - 10, 11, 4, 0, 0, Math.PI * 2);
+      ctx.moveTo(drawX - 4, drawJarY - 15);
+      ctx.lineTo(drawX + 4, drawJarY - 15);
+      ctx.lineTo(drawX, drawJarY - 8);
       ctx.stroke();
     }
 
@@ -171,42 +153,48 @@ export class OasisPool extends Prop {
 
     ctx.save();
 
-    // Pool border (Rocks)
-    ctx.fillStyle = '#757575';
+    // Pool border (Jagged Obsidian Rocks)
+    ctx.fillStyle = '#0a0a0a';
+    ctx.strokeStyle = '#4a148c'; // dark purple highlight
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(drawX, drawY + 2, 28, 14, 0, 0, Math.PI * 2);
+    ctx.moveTo(drawX - 30, drawY);
+    ctx.lineTo(drawX - 15, drawY + 15);
+    ctx.lineTo(drawX + 10, drawY + 18);
+    ctx.lineTo(drawX + 32, drawY + 5);
+    ctx.lineTo(drawX + 20, drawY - 12);
+    ctx.lineTo(drawX - 10, drawY - 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Blood/Styx Water
+    ctx.fillStyle = '#b71c1c'; // deep blood red
+    ctx.shadowColor = '#ff1744';
+    ctx.shadowBlur = 20 + Math.sin(time * 4) * 10;
+
+    ctx.beginPath();
+    ctx.moveTo(drawX - 22, drawY);
+    ctx.lineTo(drawX - 10, drawY + 10);
+    ctx.lineTo(drawX + 5, drawY + 12);
+    ctx.lineTo(drawX + 24, drawY + 2);
+    ctx.lineTo(drawX + 12, drawY - 8);
+    ctx.lineTo(drawX - 5, drawY - 12);
+    ctx.closePath();
     ctx.fill();
 
-    // Water
-    const waterGrad = ctx.createRadialGradient(drawX, drawY, 0, drawX, drawY, 25);
-    waterGrad.addColorStop(0, '#4DD0E1');
-    waterGrad.addColorStop(1, '#0097A7');
-
-    ctx.fillStyle = waterGrad;
-    ctx.beginPath();
-    ctx.ellipse(drawX, drawY, 24, 11, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Ripples
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    // Sharp Ripples
+    ctx.strokeStyle = '#ff8a80';
     ctx.lineWidth = 1;
-    const rippleRadius = (time * 10) % 20;
+    ctx.shadowBlur = 0; // reset
+    const rippleScale = (time * 2) % 1;
     ctx.beginPath();
-    ctx.ellipse(drawX, drawY, rippleRadius, rippleRadius * 0.45, 0, 0, Math.PI * 2);
+    ctx.moveTo(drawX - 10 * rippleScale, drawY);
+    ctx.lineTo(drawX, drawY + 5 * rippleScale);
+    ctx.lineTo(drawX + 10 * rippleScale, drawY);
+    ctx.lineTo(drawX, drawY - 5 * rippleScale);
+    ctx.closePath();
     ctx.stroke();
-
-    const rippleRadius2 = ((time * 10) + 10) % 20;
-    ctx.beginPath();
-    ctx.ellipse(drawX, drawY, rippleRadius2, rippleRadius2 * 0.45, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Bloom/Glow around the oasis
-    ctx.shadowColor = '#00BCD4';
-    ctx.shadowBlur = 15 + Math.sin(time * 3) * 5;
-    ctx.fillStyle = 'rgba(0, 188, 212, 0.2)';
-    ctx.beginPath();
-    ctx.ellipse(drawX, drawY, 24, 11, 0, 0, Math.PI * 2);
-    ctx.fill();
 
     ctx.restore();
   }
@@ -221,31 +209,39 @@ export class Boulder extends Prop {
     ctx.save();
 
     // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
     ctx.beginPath();
-    ctx.ellipse(drawX, drawY, 18, 9, 0, 0, Math.PI * 2);
+    ctx.moveTo(drawX - 20, drawY);
+    ctx.lineTo(drawX, drawY + 12);
+    ctx.lineTo(drawX + 20, drawY);
+    ctx.lineTo(drawX, drawY - 12);
     ctx.fill();
 
-    // Rock body
-    const rockGrad = ctx.createRadialGradient(drawX - 5, drawY - 10, 2, drawX, drawY, 20);
-    rockGrad.addColorStop(0, '#BDBDBD');
-    rockGrad.addColorStop(0.7, '#757575');
-    rockGrad.addColorStop(1, '#424242');
+    // Rock body (sharp and dark)
+    ctx.fillStyle = '#111';
+    ctx.strokeStyle = '#7b1fa2'; // purple glow
+    ctx.lineWidth = 1.5;
 
-    ctx.fillStyle = rockGrad;
     ctx.beginPath();
     ctx.moveTo(drawX - 15, drawY);
-    ctx.quadraticCurveTo(drawX - 20, drawY - 15, drawX - 5, drawY - 20);
-    ctx.quadraticCurveTo(drawX + 10, drawY - 25, drawX + 18, drawY - 10);
-    ctx.quadraticCurveTo(drawX + 15, drawY + 2, drawX, drawY + 2);
-    ctx.quadraticCurveTo(drawX - 10, drawY + 3, drawX - 15, drawY);
+    ctx.lineTo(drawX - 25, drawY - 15);
+    ctx.lineTo(drawX - 5, drawY - 30);
+    ctx.lineTo(drawX + 15, drawY - 20);
+    ctx.lineTo(drawX + 25, drawY - 5);
+    ctx.lineTo(drawX + 10, drawY + 5);
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
 
-    // Highlights
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    // Magma cracks
+    ctx.strokeStyle = '#e65100'; // dark orange
+    ctx.shadowColor = '#ff9800';
+    ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.ellipse(drawX - 8, drawY - 12, 6, 3, Math.PI / 4, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(drawX - 10, drawY - 5);
+    ctx.lineTo(drawX, drawY - 15);
+    ctx.lineTo(drawX + 10, drawY - 10);
+    ctx.stroke();
 
     ctx.restore();
   }
