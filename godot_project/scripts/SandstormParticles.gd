@@ -22,7 +22,8 @@ class SandParticle:
 
 func _ready() -> void:
 	z_index = 100
-	for i in MAX_PARTICLES:
+	var count = MAX_PARTICLES if GameManager.high_quality else 30
+	for i in count:
 		_spawn_particle(true)
 
 func _process(delta: float) -> void:

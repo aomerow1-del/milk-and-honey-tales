@@ -6,6 +6,7 @@ var max_health: int = 100
 var score: int = 0
 var active_boss: Node2D = null
 var glow_enabled: bool = true
+var high_quality: bool = true
 
 
 # Screen shake state

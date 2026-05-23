@@ -33,6 +33,7 @@ var col3_title: Label
 # Settings controls
 var fs_btn: Button
 var hdr_btn: Button
+var quality_btn: Button
 var lang_btn: Button
 var back_btn: Button
 
@@ -51,8 +52,8 @@ var rebinding_action: String = ""
 const ACTIONS = ["move_up", "move_down", "move_left", "move_right", "dash", "attack", "interact"]
 
 func _ready() -> void:
-	# Load controls configuration
-	load_bindings()
+	# Load controls and graphics configurations
+	load_settings()
 
 	# Create StyleBoxes
 	style_panel = _create_stylebox(Color(0.08, 0.06, 0.12, 0.92), Color(0.85, 0.7, 0.3, 0.8), 2, 12)
@@ -67,8 +68,9 @@ func _ready() -> void:
 	style_btn_disabled = _create_stylebox(Color(0.05, 0.05, 0.07, 0.4), Color(0.2, 0.2, 0.2, 0.2), 1, 6)
 	style_btn_active = _create_stylebox(Color(0.15, 0.12, 0.24, 0.9), Color(1.0, 0.85, 0.2, 1.0), 2, 6)
 
-	# Initialize particles
-	for i in range(MAX_PARTICLES):
+	# Initialize particles (scale count based on quality settings)
+	var particle_count = MAX_PARTICLES if GameManager.high_quality else 15
+	for i in range(particle_count):
 		particles.append(_create_particle(true))
 
 	# 1. Background Canvas
@@ -187,6 +189,11 @@ func _ready() -> void:
 	_setup_button(hdr_btn, col1_vbox, false)
 	hdr_btn.pressed.connect(_on_hdr_pressed)
 
+	# Quality Toggle Button
+	quality_btn = Button.new()
+	_setup_button(quality_btn, col1_vbox, false)
+	quality_btn.pressed.connect(_on_quality_pressed)
+
 	# Language Button
 	lang_btn = Button.new()
 	_setup_button(lang_btn, col1_vbox, false)
@@ -296,7 +303,7 @@ func _input(event: InputEvent) -> void:
 			
 			rebind_action_key(rebinding_action, keycode)
 			is_rebinding = false
-			save_bindings()
+			save_settings()
 			update_localization()
 
 func _on_bg_draw() -> void:
@@ -404,6 +411,9 @@ func update_localization() -> void:
 	if is_he:
 		hdr_btn.text = LocalizationManager.get_string("graphics_hdr") + ": " + ("פעיל" if GameManager.glow_enabled else "כבוי")
 		
+	var q_text = LocalizationManager.get_string("quality_high") if GameManager.high_quality else LocalizationManager.get_string("quality_low")
+	quality_btn.text = q_text
+	
 	lang_btn.text = LocalizationManager.get_string("lang_toggle")
 	
 	# Column 2 Save Slots
@@ -496,7 +506,7 @@ func rebind_action_key(action: String, physical_keycode: int) -> void:
 	for ev in mouse_events:
 		InputMap.action_add_event(action, ev)
 
-func save_bindings() -> void:
+func save_settings() -> void:
 	var bindings := {}
 	for action in ACTIONS:
 		var events = InputMap.action_get_events(action)
@@ -505,38 +515,67 @@ func save_bindings() -> void:
 			if ev is InputEventKey:
 				keycodes.append(ev.physical_keycode)
 		bindings[action] = keycodes
-	var file = FileAccess.open("user://controls.cfg", FileAccess.WRITE)
+		
+	var data = {
+		"glow_enabled": GameManager.glow_enabled,
+		"high_quality": GameManager.high_quality,
+		"language": LocalizationManager.current_lang,
+		"fullscreen": DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN,
+		"bindings": bindings
+	}
+	var file = FileAccess.open("user://settings.cfg", FileAccess.WRITE)
 	if file:
-		file.store_string(JSON.stringify(bindings))
+		file.store_string(JSON.stringify(data))
 
-func load_bindings() -> void:
-	if not FileAccess.file_exists("user://controls.cfg"):
+func load_settings() -> void:
+	# Keep backwards compatibility: check settings.cfg first, then controls.cfg as fallback
+	if not FileAccess.file_exists("user://settings.cfg"):
+		if FileAccess.file_exists("user://controls.cfg"):
+			var file = FileAccess.open("user://controls.cfg", FileAccess.READ)
+			var json = JSON.new()
+			if json.parse(file.get_as_text()) == OK:
+				var bindings = json.get_data()
+				_apply_loaded_bindings(bindings)
 		return
-	var file = FileAccess.open("user://controls.cfg", FileAccess.READ)
+		
+	var file = FileAccess.open("user://settings.cfg", FileAccess.READ)
 	if not file:
 		return
 	var json = JSON.new()
 	if json.parse(file.get_as_text()) == OK:
-		var bindings = json.get_data()
-		for action in bindings:
-			if InputMap.has_action(action):
-				# Clear existing key events, keep mouse clicks if any
-				var events = InputMap.action_get_events(action)
-				var mouse_events = []
-				for ev in events:
-					if ev is InputEventMouseButton:
-						mouse_events.append(ev)
-				InputMap.action_erase_events(action)
-				
-				# Add saved keycodes
-				for keycode in bindings[action]:
-					var new_ev = InputEventKey.new()
-					new_ev.physical_keycode = keycode
-					InputMap.action_add_event(action, new_ev)
-				
-				# Re-add mouse clicks
-				for ev in mouse_events:
-					InputMap.action_add_event(action, ev)
+		var data = json.get_data()
+		GameManager.glow_enabled = data.get("glow_enabled", true)
+		GameManager.high_quality = data.get("high_quality", true)
+		
+		# Language configuration synchronization
+		var lang = data.get("language", "en")
+		if lang != LocalizationManager.current_lang:
+			LocalizationManager.toggle_language()
+			
+		var is_fs = data.get("fullscreen", false)
+		if is_fs:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		else:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			
+		var bindings = data.get("bindings", {})
+		_apply_loaded_bindings(bindings)
+
+func _apply_loaded_bindings(bindings: Dictionary) -> void:
+	for action in bindings:
+		if InputMap.has_action(action):
+			var events = InputMap.action_get_events(action)
+			var mouse_events = []
+			for ev in events:
+				if ev is InputEventMouseButton:
+					mouse_events.append(ev)
+			InputMap.action_erase_events(action)
+			for keycode in bindings[action]:
+				var new_ev = InputEventKey.new()
+				new_ev.physical_keycode = keycode
+				InputMap.action_add_event(action, new_ev)
+			for ev in mouse_events:
+				InputMap.action_add_event(action, ev)
 
 func _on_rebind_pressed(action: String, btn: Button) -> void:
 	if is_rebinding:
@@ -558,15 +597,31 @@ func _on_fs_pressed() -> void:
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	await get_tree().create_timer(0.05).timeout
+	save_settings()
 	update_localization()
 
 func _on_hdr_pressed() -> void:
 	GameManager.glow_enabled = not GameManager.glow_enabled
+	save_settings()
+	update_localization()
+
+func _on_quality_pressed() -> void:
+	GameManager.high_quality = not GameManager.high_quality
+	
+	# Instantly adjust main menu particle counts
+	var target_count = MAX_PARTICLES if GameManager.high_quality else 15
+	if particles.size() > target_count:
+		particles.resize(target_count)
+	elif particles.size() < target_count:
+		for i in range(target_count - particles.size()):
+			particles.append(_create_particle(true))
+			
+	save_settings()
 	update_localization()
 
 func _on_lang_pressed() -> void:
-	# Also toggle language manager language state
 	LocalizationManager.toggle_language()
+	save_settings()
 	update_localization()
 
 func _on_new_game_pressed() -> void:

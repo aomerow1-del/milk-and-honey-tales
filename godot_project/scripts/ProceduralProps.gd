@@ -125,6 +125,7 @@ class OliveTree extends Node2D:
     func _ready() -> void:
         sway_t = randf() * TAU
         z_index = 0
+        set_process(GameManager.high_quality)
     func _process(d: float) -> void:
         sway_t += d * 1.2
         queue_redraw()
@@ -148,6 +149,7 @@ class AncientJar extends Node2D:
     func _ready() -> void: 
         gt = randf()*TAU
         z_index = 0
+        set_process(GameManager.high_quality)
     func _process(d: float) -> void: 
         gt += d*2.0
         queue_redraw()
@@ -170,6 +172,7 @@ class OasisPool extends Node2D:
     func _ready() -> void: 
         rt = randf()*TAU
         z_index = -1
+        set_process(GameManager.high_quality)
     func _process(d: float) -> void: 
         rt += d*0.8
         queue_redraw()
@@ -241,6 +244,7 @@ class ObsidianSpike extends Node2D:
     func _ready() -> void: 
         pulse_time = randf() * TAU
         z_index = 0
+        set_process(GameManager.high_quality)
     func _process(delta: float) -> void: 
         pulse_time += delta * 1.5
         queue_redraw()
@@ -352,6 +356,7 @@ class Campfire extends Node2D:
     func _ready() -> void: 
         ft = randf()*TAU
         z_index = 0
+        set_process(GameManager.high_quality)
     func _process(d: float) -> void: 
         ft += d*5.0
         queue_redraw()
@@ -381,6 +386,7 @@ class Lantern extends Node2D:
     func _ready() -> void: 
         lt = randf()*TAU
         z_index = 0
+        set_process(GameManager.high_quality)
     func _process(d: float) -> void: 
         lt += d*3.0
         queue_redraw()
@@ -467,6 +473,7 @@ class BannerPole extends Node2D:
     func _ready() -> void: 
         bt = randf()*TAU
         z_index = 0
+        set_process(GameManager.high_quality)
     func _process(d: float) -> void: 
         bt += d*2.0
         queue_redraw()
