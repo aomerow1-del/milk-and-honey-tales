@@ -17,6 +17,7 @@ export interface TranslationStrings {
   shopTitle: string;
   shopHint: string;
   falafel: string;
+  sabraFruit?: string;
   questGranted: string;
   combatTitle: string;
   combatEnemyHealth: string;
@@ -26,6 +27,9 @@ export interface TranslationStrings {
   bananoDialogueNeedBamba: string;
   bananoDialogueThanks: string;
   questCompleted: string;
+  aravaDialogueNeedSabra: string;
+  aravaDialogueThanks: string;
+  macabiDialogue: string;
 }
 
 export const strings: Record<'en' | 'he', TranslationStrings> = {
@@ -51,6 +55,7 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     shopTitle: 'The Shuk (Market)',
     shopHint: '[1] Buy Falafel (20 Shekels)   [2] Close',
     falafel: 'Falafel',
+    sabraFruit: 'Sabra Fruit',
     questGranted: '\n[Quest Granted: The First Steps]',
     combatTitle: 'Combat',
     combatEnemyHealth: 'Enemy Health',
@@ -59,7 +64,10 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     combatControls: '[1] Attack   [2] Special Attack (10 MP)   [3] Flee',
     bananoDialogueNeedBamba: 'Beep boop! I am Nano Banano. Bring me the Holy Bamba from the Central District to power my core!',
     bananoDialogueThanks: 'Bzzt! Holy Bamba detected! Power levels over 9000! Thank you, hero. The game is complete!',
-    questCompleted: '\n[Quest Completed: The Desert Journey]'
+    questCompleted: '\n[Quest Completed: The Desert Journey]',
+    aravaDialogueNeedSabra: 'Peace be with you. I am Arava. The desert is harsh... If you find a fresh Sabra Fruit, I will trade you 50 Shekels for it.',
+    aravaDialogueThanks: 'Ah, a sweet Sabra Fruit! Here are your 50 Shekels. May your journey be safe.',
+    macabiDialogue: 'Halt! I am Macabi, guardian of the Central District. I hear the Bamba Golem is causing trouble nearby. Be ready for combat!'
   },
   he: {
     title: 'עלילות חלב ודבש',
@@ -83,6 +91,7 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     shopTitle: 'השוק',
     shopHint: '[1] קנה פלאפל (20 שקלים)   [2] סגור',
     falafel: 'פלאפל',
+    sabraFruit: 'סברס',
     questGranted: '\n[משימה חדשה: הצעדים הראשונים]',
     combatTitle: 'קרב',
     combatEnemyHealth: 'בריאות אויב',
@@ -91,6 +100,9 @@ export const strings: Record<'en' | 'he', TranslationStrings> = {
     combatControls: '[1] תקיפה   [2] יכולת מיוחדת (10 MP)   [3] בריחה',
     bananoDialogueNeedBamba: 'ביפ בופ! אני נאנו בננו. הבא לי את הבמבה הקדושה מהמרכז כדי להטעין את הליבה שלי!',
     bananoDialogueThanks: 'בזזז! במבה קדושה זוהתה! רמות האנרגיה מעל 9000! תודה לך, גיבור. המשחק הושלם!',
-    questCompleted: '\n[המשימה הושלמה: המסע במדבר]'
+    questCompleted: '\n[המשימה הושלמה: המסע במדבר]',
+    aravaDialogueNeedSabra: 'שלום עליכם. אני ערבה. המדבר אכזר... אם תמצא פרי צבר (סברס) טרי, אתן לך 50 שקלים בתמורה.',
+    aravaDialogueThanks: 'אה, פרי צבר מתוק! הנה 50 השקלים שלך. דרך צלחה במסעך.',
+    macabiDialogue: 'עצור! אני מכבי, שומר מחוז המרכז. שמעתי שגולם הבמבה עושה צרות בסביבה. היה מוכן לקרב!'
   }
 };
