@@ -29,6 +29,10 @@ export class QuestManager {
     return Array.from(this.quests.values()).filter(q => !q.isCompleted);
   }
 
+  public getQuests(): Quest[] {
+      return Array.from(this.quests.values());
+  }
+
   public hasQuest(id: string): boolean {
     return this.quests.has(id);
   }

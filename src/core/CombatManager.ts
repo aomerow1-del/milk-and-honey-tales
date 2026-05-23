@@ -67,11 +67,13 @@ export class CombatManager {
       }
 
       // Update enemies
+      let bossDied = false;
       for (let i = this.enemies.length - 1; i >= 0; i--) {
           const enemy = this.enemies[i];
           if (enemy.damageFlashTimer > 0) enemy.damageFlashTimer -= deltaTime;
 
           if (enemy.health <= 0) {
+              if (enemy.id === 'spawned_enemy') bossDied = true;
               enemy.isDead = true;
               this.enemies.splice(i, 1);
               continue;
@@ -109,6 +111,7 @@ export class CombatManager {
               }
           }
       }
+      return bossDied;
   }
 
   public playerMeleeAttack(playerX: number, playerY: number, facingDirX: number, facingDirY: number): boolean {
