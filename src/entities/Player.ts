@@ -37,8 +37,7 @@ export class Player {
 
   // ── Movement ─────────────────────────────────────────────────────────────
   public isMoving: boolean  = false;
-  public moveProgress: number = 0;
-  private readonly moveSpeed: number = 4.0; // grid tiles per second
+  public readonly moveSpeed: number = 4.0; // grid tiles per second
 
   // ── Facing direction ─────────────────────────────────────────────────────
   public facingDirection: 'down-left' | 'down-right' | 'up-left' | 'up-right'
@@ -86,33 +85,59 @@ export class Player {
    * correct spritesheet row shows from the very first rendered frame.
    * Boundary-clamped to [0, mapSize).
    */
-  public move(dx: number, dy: number, map: GameMap): void {
-    if (this.isMoving) return;
+  public moveContinuous(dx: number, dy: number, map: GameMap, deltaTime: number): void {
+    this.isMoving = (dx !== 0 || dy !== 0);
 
-    const nextX = this.gridX + dx;
-    const nextY = this.gridY + dy;
-
-    // Check if the destination is passable or if we are going out of bounds (which triggers transition)
-    // We reject input only if the destination is an obstacle on the map (isPassable == false)
-    if (map.isPassable(nextX, nextY)) {
-      this.targetGridX = nextX;
-      this.targetGridY = nextY;
-      this.isMoving    = true;
-      this.moveProgress = 0;
-
+    if (this.isMoving) {
       // 1. Update direction string
-      if      (dx > 0)  this.facingDirection = 'down-right';
-      else if (dx < 0)  this.facingDirection = 'up-left';
-      else if (dy > 0)  this.facingDirection = 'down-left';
-      else if (dy < 0)  this.facingDirection = 'up-right';
+      if (dx > 0 && dy === 0) this.facingDirection = 'down-right';
+      else if (dx < 0 && dy === 0) this.facingDirection = 'up-left';
+      else if (dy > 0 && dx === 0) this.facingDirection = 'down-left';
+      else if (dy < 0 && dx === 0) this.facingDirection = 'up-right';
+      else if (dx > 0 && dy > 0) this.facingDirection = 'down-right'; // Diagonal arbitrary
+      else if (dx < 0 && dy > 0) this.facingDirection = 'down-left';
+      else if (dx > 0 && dy < 0) this.facingDirection = 'up-right';
+      else if (dx < 0 && dy < 0) this.facingDirection = 'up-left';
 
-      // 2. Map to spritesheet row BEFORE the first lerp tick
+      // 2. Map to spritesheet row
       this.directionRow = DIRECTION_ROW[this.facingDirection];
+
+      // Normalize diagonal movement
+      let mag = Math.sqrt(dx * dx + dy * dy);
+      if (mag > 0) {
+        dx = (dx / mag) * this.moveSpeed * deltaTime;
+        dy = (dy / mag) * this.moveSpeed * deltaTime;
+      }
+
+      const nextX = this.gridX + dx;
+      const nextY = this.gridY + dy;
+
+      // Calculate the tile coordinate the player is trying to enter
+      // Check collision considering a small bounding box
+      const checkX = Math.floor(nextX + 0.5);
+      const checkY = Math.floor(nextY + 0.5);
+
+      if (map.isPassable(checkX, checkY)) {
+        this.gridX = nextX;
+        this.gridY = nextY;
+      } else {
+          // Slide along walls
+          if (map.isPassable(Math.floor(nextX + 0.5), Math.floor(this.gridY + 0.5))) {
+              this.gridX = nextX;
+          } else if (map.isPassable(Math.floor(this.gridX + 0.5), Math.floor(nextY + 0.5))) {
+              this.gridY = nextY;
+          }
+      }
     }
+
+    // Always update screen position to match current precise grid position
+    const screenPos = IsoMath.tileToScreen(this.gridX, this.gridY);
+    this.screenX = screenPos.x;
+    this.screenY = screenPos.y;
   }
 
   /**
-   * Advances the linear-interpolation step and frame-animation counter.
+   * Advances the frame-animation counter.
    * Frame ticking only runs while the player is walking; resets on idle.
    */
   public update(deltaTime: number): void {
@@ -121,25 +146,6 @@ export class Player {
       this.frameIndex = 0;
       this.frameTick  = 0;
       return;
-    }
-
-    // ── Screen-coordinate interpolation ──────────────────────────────────
-    this.moveProgress += deltaTime * this.moveSpeed;
-
-    if (this.moveProgress >= 1.0) {
-      this.gridX = this.targetGridX;
-      this.gridY = this.targetGridY;
-      this.isMoving     = false;
-      this.moveProgress = 0;
-
-      const final = IsoMath.tileToScreen(this.gridX, this.gridY);
-      this.screenX = final.x;
-      this.screenY = final.y;
-    } else {
-      const start = IsoMath.tileToScreen(this.gridX, this.gridY);
-      const end   = IsoMath.tileToScreen(this.targetGridX, this.targetGridY);
-      this.screenX = start.x + (end.x - start.x) * this.moveProgress;
-      this.screenY = start.y + (end.y - start.y) * this.moveProgress;
     }
 
     // ── Walk-cycle frame advancement ──────────────────────────────────────

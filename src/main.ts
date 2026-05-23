@@ -4,6 +4,9 @@ import { GameMap, MAP_SIZE } from './core/Map';
 import { Player } from './entities/Player';
 import { NPC } from './entities/NPC';
 import { NanoBanano } from './entities/NanoBanano';
+import { SabraPlant } from './entities/SabraPlant';
+import { Arava } from './entities/Arava';
+import { Macabi } from './entities/Macabi';
 import { LocaleManager } from './localization/LocaleManager';
 import { Camera } from './core/Camera';
 import { SaveService } from './services/SaveService';
@@ -53,6 +56,15 @@ const audioManager = new AudioManager();
 
 const nanoBanano = new NanoBanano(7, 7);
 
+const sabraPlants = [
+  new SabraPlant(5, 5),
+  new SabraPlant(2, 8),
+  new SabraPlant(8, 2)
+];
+
+const arava = new Arava(8, 8);
+const macabi = new Macabi(4, 7);
+
 // The Uncommon Bamba Golem
 const bambaGolem: Enemy = {
   id: 'bamba_golem',
@@ -61,6 +73,26 @@ const bambaGolem: Enemy = {
   health: 150,
   level: 5,
   attackPower: 12,
+  elementType: 'Sand'
+};
+
+const angryCamel: Enemy = {
+  id: 'angry_camel',
+  nameKey: 'Angry Camel',
+  maxHealth: 60,
+  health: 60,
+  level: 2,
+  attackPower: 8,
+  elementType: 'Normal'
+};
+
+const sandViper: Enemy = {
+  id: 'sand_viper',
+  nameKey: 'Sand Viper',
+  maxHealth: 45,
+  health: 45,
+  level: 3,
+  attackPower: 15,
   elementType: 'Sand'
 };
 
@@ -153,8 +185,8 @@ const handleInteraction = () => {
   }
 
   // Determine facing coordinate
-  let faceX = player.gridX;
-  let faceY = player.gridY;
+  let faceX = Math.round(player.gridX);
+  let faceY = Math.round(player.gridY);
 
   if (player.facingDirection === 'up-right') faceY -= 1;
   else if (player.facingDirection === 'down-left') faceY += 1;
@@ -195,6 +227,24 @@ const handleInteraction = () => {
     return;
   }
 
+  if (currentRegion === 'central_district' && faceX === macabi.gridX && faceY === macabi.gridY) {
+    isDialogueOpen = true;
+    currentDialogueSpeaker = 'macabi';
+    return;
+  }
+
+  if (currentRegion === 'negev_desert' && faceX === arava.gridX && faceY === arava.gridY) {
+    isDialogueOpen = true;
+    currentDialogueSpeaker = 'arava';
+
+    if (inventoryManager.hasItem('sabra_fruit')) {
+      inventoryManager.removeItem('sabra_fruit');
+      inventoryManager.addCurrency(50);
+      currentDialogueSpeaker = 'arava_thanks';
+    }
+    return;
+  }
+
   if (currentRegion === 'negev_desert' && faceX === nanoBanano.gridX && faceY === nanoBanano.gridY) {
     isDialogueOpen = true;
     currentDialogueSpeaker = 'banano';
@@ -212,6 +262,25 @@ const handleInteraction = () => {
     }
     return;
   }
+
+  // Harvest Sabra Plants in Negev Desert
+  if (currentRegion === 'negev_desert') {
+    for (const plant of sabraPlants) {
+      if (faceX === plant.gridX && faceY === plant.gridY && !plant.isHarvested) {
+        plant.isHarvested = true;
+        inventoryManager.addItem({
+          id: 'sabra_fruit',
+          name: localeManager.getStrings().sabraFruit || 'Sabra Fruit',
+          description: 'A prickly pear fruit. Sweet and refreshing.',
+          iconColor: '#e64a19'
+        }, 1);
+
+        isDialogueOpen = true;
+        currentDialogueSpeaker = 'harvest_sabra';
+        return;
+      }
+    }
+  }
 };
 
 window.addEventListener('keyup', (e) => {
@@ -228,32 +297,64 @@ window.addEventListener('keyup', (e) => {
 });
 
 // Update input logic
-const handlePlayerInput = () => {
-  if (player.isMoving || isTransitioning || isDialogueOpen || isInventoryOpen || combatManager.getInCombat()) return;
+const handlePlayerInput = (deltaTime: number) => {
+  if (isTransitioning || isDialogueOpen || isInventoryOpen || combatManager.getInCombat()) {
+    player.isMoving = false;
+    return;
+  }
 
   let dx = 0;
   let dy = 0;
 
   if (keys.ArrowUp) {
     dy = -1; // Moves Y negative (Screen Up-Right)
-  } else if (keys.ArrowDown) {
+  }
+  if (keys.ArrowDown) {
     dy = 1;  // Moves Y positive (Screen Down-Left)
-  } else if (keys.ArrowLeft) {
+  }
+  if (keys.ArrowLeft) {
     dx = -1; // Moves X negative (Screen Up-Left)
-  } else if (keys.ArrowRight) {
+  }
+  if (keys.ArrowRight) {
     dx = 1;  // Moves X positive (Screen Down-Right)
   }
 
-  if (dx !== 0 || dy !== 0) {
-    const nextX = player.gridX + dx;
-    const nextY = player.gridY + dy;
+  player.moveContinuous(dx, dy, map, deltaTime);
 
-    // Check if player steps off map boundary
-    if (nextX < 0 || nextX >= MAP_SIZE || nextY < 0 || nextY >= MAP_SIZE) {
-      triggerTransition(dx, dy);
-    } else {
-      player.move(dx, dy, map);
+  // Random encounter logic in the Negev Desert
+  if (player.isMoving && currentRegion === 'negev_desert') {
+    // Very small chance per frame while moving
+    if (Math.random() < 0.001) {
+      const enemyToFight = Math.random() > 0.5 ? { ...angryCamel } : { ...sandViper };
+      combatManager.startCombat(enemyToFight, (won: boolean) => {
+        if (won) {
+          inventoryManager.addCurrency(10); // Reward for winning random battle
+        }
+      });
+      // Reset input state to avoid immediate movement after combat
+      keys.ArrowUp = false;
+      keys.ArrowDown = false;
+      keys.ArrowLeft = false;
+      keys.ArrowRight = false;
+      player.isMoving = false;
+      return;
     }
+  }
+
+  // Check if player steps off map boundary using rounded coordinates
+  const checkX = Math.round(player.gridX);
+  const checkY = Math.round(player.gridY);
+
+  if (checkX < 0 || checkX >= MAP_SIZE || checkY < 0 || checkY >= MAP_SIZE) {
+    // Determine primary transition direction
+    let transDx = 0;
+    let transDy = 0;
+    if (checkX < 0) transDx = -1;
+    else if (checkX >= MAP_SIZE) transDx = 1;
+    if (checkY < 0) transDy = -1;
+    else if (checkY >= MAP_SIZE) transDy = 1;
+
+    triggerTransition(transDx, transDy);
   }
 };
 
@@ -305,15 +406,13 @@ const tick = (currentTime: number) => {
   const deltaTime = Math.min(0.1, (currentTime - lastTime) / 1000);
   lastTime = currentTime;
 
-  // 1. Handle keyboard movements
-  handlePlayerInput();
-
-  // 2. Update player position interpolation
+  // 1. Handle keyboard movements & continuous player update
   if (!isTransitioning) {
+    handlePlayerInput(deltaTime);
     player.update(deltaTime);
   }
 
-  // 3. Update Camera position (target the player's center)
+  // 2. Update Camera position (target the player's center)
   const targetCamX = player.screenX;
   const targetCamY = player.screenY + IsoMath.TILE_HEIGHT / 2;
   camera.update(targetCamX, targetCamY, canvas.width, canvas.height, deltaTime);
@@ -351,13 +450,13 @@ const tick = (currentTime: number) => {
     }
   }
 
-  // Calculate interpolated depth coordinate for player
-  const playerInterpX = player.gridX + (player.targetGridX - player.gridX) * player.moveProgress;
-  const playerInterpY = player.gridY + (player.targetGridY - player.gridY) * player.moveProgress;
+  // Player is already at interpolated float coordinates
+  const playerDepthX = player.gridX;
+  const playerDepthY = player.gridY;
   
   // Add player to drawing list
   drawList.push({
-    depth: playerInterpX + playerInterpY,
+    depth: playerDepthX + playerDepthY,
     renderOrder: 1,
     draw: () => player.draw(ctx, 0, 0)
   });
@@ -368,14 +467,33 @@ const tick = (currentTime: number) => {
       renderOrder: 1,
       draw: () => npc.draw(ctx, 0, 0)
     });
+
+    drawList.push({
+      depth: macabi.gridX + macabi.gridY,
+      renderOrder: 1,
+      draw: () => macabi.draw(ctx, 0, 0)
+    });
   }
 
   if (currentRegion === 'negev_desert') {
+    drawList.push({
+      depth: arava.gridX + arava.gridY,
+      renderOrder: 1,
+      draw: () => arava.draw(ctx, 0, 0, time)
+    });
     drawList.push({
       depth: nanoBanano.gridX + nanoBanano.gridY,
       renderOrder: 1,
       draw: () => nanoBanano.draw(ctx, 0, 0, time)
     });
+
+    for (const plant of sabraPlants) {
+      drawList.push({
+        depth: plant.gridX + plant.gridY,
+        renderOrder: 1,
+        draw: () => plant.draw(ctx, 0, 0)
+      });
+    }
   }
 
   // Sort drawList: ascending depth, then renderOrder
@@ -627,6 +745,14 @@ const drawDialogue = () => {
          dialogueText += '\n[Quest Granted: The Desert Journey]';
       }
     }
+  } else if (currentDialogueSpeaker === 'harvest_sabra') {
+      dialogueText = isRtl ? 'קטפת פרי צבר (סברס)! נזהרת מהקוצים.' : 'You harvested a Sabra Fruit! You carefully avoided the prickles.';
+  } else if (currentDialogueSpeaker === 'macabi') {
+      dialogueText = localeManager.getStrings().macabiDialogue;
+  } else if (currentDialogueSpeaker === 'arava') {
+      dialogueText = localeManager.getStrings().aravaDialogueNeedSabra;
+  } else if (currentDialogueSpeaker === 'arava_thanks') {
+      dialogueText = localeManager.getStrings().aravaDialogueThanks;
   }
 
   const lines = dialogueText.split('\n');
@@ -939,7 +1065,7 @@ const drawHUD = () => {
   ctx.font = '500 12px "Outfit", sans-serif';
   ctx.fillStyle = '#81c784';
   const movingText = player.isMoving ? localeManager.getStrings().moving : '';
-  const playerText = `${localeManager.getStrings().playerGrid}: [X: ${player.gridX}, Y: ${player.gridY}]${movingText}`;
+  const playerText = `${localeManager.getStrings().playerGrid}: [X: ${player.gridX.toFixed(1)}, Y: ${player.gridY.toFixed(1)}]${movingText}`;
   ctx.fillText(
     playerText,
     textX,
