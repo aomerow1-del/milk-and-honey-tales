@@ -1,3 +1,2 @@
 # .gitleaksignore
-# Ignore historical revoked secrets so past commits do not block the pipeline
-AIzaSyD03FLNehwW5ZPa9RrrlKgCcgJ8LXmIaeg
+# Empty file. No secrets to ignore.
