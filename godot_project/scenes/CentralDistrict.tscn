@@ -5,13 +5,15 @@
 
 [node name="CentralDistrict" type="Node2D"]
 script = ExtResource("1_d4w8b")
+region_name = "central_district"
 
 [node name="Background" type="ColorRect" parent="."]
+z_index = -20
 offset_left = -2000.0
 offset_top = -2000.0
 offset_right = 2000.0
 offset_bottom = 2000.0
-color = Color(0.2, 0.2, 0.3, 1)
+color = Color(0.06, 0.06, 0.1, 1)
 
 [node name="YSort" type="Node2D" parent="."]
 y_sort_enabled = true
